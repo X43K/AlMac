@@ -323,6 +323,288 @@ function cambiarPasswordUsuario($id,$password){
 }
 
 /**********************************************************************
+ MOVIMIENTOS
+**********************************************************************/
+
+function siguienteIdMovimiento(){
+
+    $movimientos=leerJSON("movimientos");
+
+    $max=0;
+
+    foreach($movimientos as $m){
+
+        if(($m["id"] ?? 0)>$max)
+            $max=$m["id"];
+
+    }
+
+    return $max+1;
+
+}
+
+
+
+function registrarMovimiento($tipo,$producto_id,$cantidad,$observaciones=""){
+
+    $productos=leerJSON("productos");
+
+    $movimientos=leerJSON("movimientos");
+
+    foreach($productos as &$p){
+
+        if($p["id"]==$producto_id){
+
+if($tipo=="Entrada"){
+
+    $p["stock"] += $cantidad;
+
+}
+
+if($tipo=="Salida"){
+
+    if($p["stock"] < $cantidad){
+
+        return "No hay suficiente stock.";
+
+    }
+
+    $p["stock"] -= $cantidad;
+
+}
+
+            $movimientos[]=[
+
+                "id"=>siguienteIdMovimiento(),
+
+                "fecha"=>date("Y-m-d H:i:s"),
+
+                "tipo"=>$tipo,
+
+                "producto_id"=>$p["id"],
+
+                "producto"=>$p["nombre"],
+
+                "cantidad"=>$cantidad,
+
+                "usuario"=>$_SESSION["usuario"]["usuario"],
+
+                "observaciones"=>$observaciones
+
+            ];
+
+            break;
+
+        }
+
+    }
+
+    guardarJSON("productos",$productos);
+
+    guardarJSON("movimientos",$movimientos);
+return true;
+}
+
+/**********************************************************************
+ CATEGORÍAS
+**********************************************************************/
+
+function siguienteIdCategoria(){
+
+    $categorias = leerJSON("categorias");
+
+    $max = 0;
+
+    foreach($categorias as $c){
+
+        if(($c["id"] ?? 0) > $max)
+            $max = $c["id"];
+
+    }
+
+    return $max + 1;
+
+}
+
+function crearCategoria($nombre){
+
+    $nombre = trim($nombre);
+
+    if($nombre=="")
+        return;
+
+    $categorias = leerJSON("categorias");
+
+    foreach($categorias as $c){
+
+        if(strtolower($c["nombre"])==strtolower($nombre))
+            return;
+
+    }
+
+    $categorias[]=[
+
+        "id"=>siguienteIdCategoria(),
+
+        "nombre"=>$nombre
+
+    ];
+
+    guardarJSON("categorias",$categorias);
+
+}
+
+function eliminarCategoria($id){
+
+    $categorias = leerJSON("categorias");
+
+    $productos = leerJSON("productos");
+
+    foreach($categorias as $c){
+
+        if($c["id"]==$id){
+
+            foreach($productos as $p){
+
+                if($p["categoria"]==$c["nombre"])
+                    return false;
+
+            }
+
+        }
+
+    }
+
+    $categorias=array_values(array_filter(
+        $categorias,
+        fn($c)=>$c["id"]!=$id
+    ));
+
+    guardarJSON("categorias",$categorias);
+
+    return true;
+
+}
+
+/**********************************************************************
+ PROVEEDORES
+**********************************************************************/
+
+function siguienteIdProveedor(){
+
+    $proveedores = leerJSON("proveedores");
+
+    $max = 0;
+
+    foreach($proveedores as $p){
+
+        if(($p["id"] ?? 0) > $max)
+            $max = $p["id"];
+
+    }
+
+    return $max + 1;
+
+}
+
+function crearProveedor($datos){
+
+    $nombre = trim($datos["nombre"]);
+
+    if($nombre=="")
+        return;
+
+    $proveedores = leerJSON("proveedores");
+
+    foreach($proveedores as $p){
+
+        if(strtolower($p["nombre"])==strtolower($nombre))
+            return;
+
+    }
+
+    $proveedores[]=[
+
+        "id"=>siguienteIdProveedor(),
+
+        "nombre"=>$nombre,
+
+        "contacto"=>trim($datos["contacto"]),
+
+        "telefono"=>trim($datos["telefono"]),
+
+        "email"=>trim($datos["email"]),
+
+        "direccion"=>trim($datos["direccion"]),
+
+        "observaciones"=>trim($datos["observaciones"])
+
+    ];
+
+    guardarJSON("proveedores",$proveedores);
+
+}
+
+function eliminarProveedor($id){
+
+    $proveedores = leerJSON("proveedores");
+
+    $productos = leerJSON("productos");
+
+    foreach($proveedores as $p){
+
+        if($p["id"]==$id){
+
+            foreach($productos as $prod){
+
+                if($prod["proveedor"]==$p["nombre"])
+                    return false;
+
+            }
+
+        }
+
+    }
+
+    $proveedores=array_values(array_filter(
+
+        $proveedores,
+
+        fn($p)=>$p["id"]!=$id
+
+    ));
+
+    guardarJSON("proveedores",$proveedores);
+
+    return true;
+
+}
+
+/***************************************************
+ PROVEEDORES
+****************************************************/
+
+if(isset($_POST["crear_proveedor"])){
+
+    crearProveedor($_POST);
+
+    header("Location:?accion=proveedores");
+
+    exit;
+
+}
+
+if(isset($_GET["borrar_proveedor"])){
+
+    eliminarProveedor(intval($_GET["borrar_proveedor"]));
+
+    header("Location:?accion=proveedores");
+
+    exit;
+
+}
+
+/**********************************************************************
  ROUTER
 **********************************************************************/
 
@@ -429,6 +711,30 @@ if(isset($_POST["cambiar_password"])){
 }
 
 /***************************************************
+ CATEGORÍAS
+****************************************************/
+
+if(isset($_POST["crear_categoria"])){
+
+    crearCategoria($_POST["nombre"]);
+
+    header("Location:?accion=categorias");
+
+    exit;
+
+}
+
+if(isset($_GET["borrar_categoria"])){
+
+    eliminarCategoria(intval($_GET["borrar_categoria"]));
+
+    header("Location:?accion=categorias");
+
+    exit;
+
+}
+
+/***************************************************
  GUARDAR PRODUCTO
 ****************************************************/
 
@@ -444,9 +750,9 @@ if(isset($_POST["guardar_producto"])){
 
         "nombre" => trim($_POST["nombre"]),
 
-        "categoria" => trim($_POST["categoria"]),
+        "categoria" => intval($_POST["categoria"]),
 
-        "proveedor" => trim($_POST["proveedor"]),
+        "proveedor" => intval($_POST["proveedor"]),
 
         "ubicacion" => trim($_POST["ubicacion"]),
 
@@ -463,6 +769,62 @@ if(isset($_POST["guardar_producto"])){
     guardarJSON("productos",$productos);
 
     header("Location:?accion=productos");
+
+    exit;
+
+}
+
+/***************************************************
+ GUARDAR ENTRADA
+****************************************************/
+
+if(isset($_POST["guardar_entrada"])){
+
+    registrarMovimiento(
+
+        "Entrada",
+
+        intval($_POST["producto"]),
+
+        intval($_POST["cantidad"]),
+
+        trim($_POST["observaciones"])
+
+    );
+
+    header("Location:?accion=entradas");
+
+    exit;
+
+}
+
+/***************************************************
+ GUARDAR SALIDA
+****************************************************/
+
+if(isset($_POST["guardar_salida"])){
+
+    $resultado = registrarMovimiento(
+
+        "Salida",
+
+        intval($_POST["producto"]),
+
+        intval($_POST["cantidad"]),
+
+        trim($_POST["observaciones"])
+
+    );
+
+    if($resultado===true){
+
+        header("Location:?accion=salidas");
+
+    }else{
+
+        header("Location:?accion=salidas&error=".urlencode($resultado));
+
+    }
 
     exit;
 
@@ -787,11 +1149,38 @@ $productos=leerJSON("productos");
 
 $movimientos=leerJSON("movimientos");
 
-$totalProductos=count($productos);
+$totalProductos = count($productos);
 
-$totalStock=0;
+$totalStock = 0;
 
-$sinStock=0;
+$sinStock = 0;
+
+$stockCritico = [];
+
+$stockBajo = [];
+
+foreach($productos as $p){
+
+    $stock = $p["stock"] ?? 0;
+
+    $min = $p["stock_minimo"] ?? 0;
+
+    $totalStock += $stock;
+
+    if($stock <= 0){
+
+        $sinStock++;
+
+        $stockCritico[] = $p;
+
+    }
+    elseif($stock <= $min){
+
+        $stockBajo[] = $p;
+
+    }
+
+}
 
 foreach($productos as $p){
 
@@ -942,6 +1331,104 @@ echo "</tr>";
 
 </table>
 
+  <hr>
+
+<div class="row">
+
+<div class="col-md-6">
+
+<div class="card border-danger shadow">
+
+<div class="card-header bg-danger text-white">
+
+<i class="bi bi-exclamation-octagon-fill"></i>
+
+Stock crítico
+
+</div>
+
+<div class="card-body">
+
+<?php
+
+if(count($stockCritico)==0){
+
+    echo "<div class='alert alert-success mb-0'>
+    No hay productos sin stock.
+    </div>";
+
+}else{
+
+    foreach($stockCritico as $p){
+
+        echo "<div class='d-flex justify-content-between border-bottom py-2'>";
+
+        echo "<strong>".$p["nombre"]."</strong>";
+
+        echo "<span class='badge bg-danger'>".$p["stock"]." / ".$p["stock_minimo"]."</span>";
+
+        echo "</div>";
+
+    }
+
+}
+
+?>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-md-6">
+
+<div class="card border-warning shadow">
+
+<div class="card-header bg-warning">
+
+<i class="bi bi-exclamation-triangle-fill"></i>
+
+Stock bajo
+
+</div>
+
+<div class="card-body">
+
+<?php
+
+if(count($stockBajo)==0){
+
+    echo "<div class='alert alert-success mb-0'>
+    Todos los productos están por encima del mínimo.
+    </div>";
+
+}else{
+
+    foreach($stockBajo as $p){
+
+        echo "<div class='d-flex justify-content-between border-bottom py-2'>";
+
+        echo "<strong>".$p["nombre"]."</strong>";
+
+        echo "<span class='badge bg-warning text-dark'>".$p["stock"]." / ".$p["stock_minimo"]."</span>";
+
+        echo "</div>";
+
+    }
+
+}
+
+?>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+  
 <?php
 
 break;
@@ -1079,9 +1566,37 @@ class="form-control">
 
 <label>Categoría</label>
 
-<input
+<label>Categoría</label>
+
+<select
 name="categoria"
-class="form-control">
+class="form-select">
+
+<option value="0">
+
+Sin categoría
+
+</option>
+
+<?php
+
+foreach(leerJSON("categorias") as $c){
+
+?>
+
+<option value="<?=$c["id"]?>">
+
+<?=htmlspecialchars($c["nombre"])?>
+
+</option>
+
+<?php
+
+}
+
+?>
+
+</select>
 
 </div>
 
@@ -1204,8 +1719,148 @@ break;
 
 case "entradas":
 
-echo "<h2>Entradas</h2>";
-echo "<div class='alert alert-warning'>Pendiente.</div>";
+$productos=leerJSON("productos");
+
+$movimientos=leerJSON("movimientos");
+
+?>
+
+<h2 class="mb-4">
+
+Entradas de mercancía
+
+</h2>
+
+<form method="post" class="card shadow p-4 mb-4">
+
+<div class="row">
+
+<div class="col-md-5">
+
+<label>Producto</label>
+
+<select
+name="producto"
+class="form-select"
+required>
+
+<option value="">Seleccione...</option>
+
+<?php
+
+foreach($productos as $p){
+
+echo "<option value='".$p["id"]."'>";
+
+echo $p["codigo"]." - ".$p["nombre"];
+
+echo "</option>";
+
+}
+
+?>
+
+</select>
+
+</div>
+
+<div class="col-md-2">
+
+<label>Cantidad</label>
+
+<input
+type="number"
+name="cantidad"
+class="form-control"
+required
+min="1">
+
+</div>
+
+<div class="col-md-5">
+
+<label>Observaciones</label>
+
+<input
+name="observaciones"
+class="form-control">
+
+</div>
+
+</div>
+
+<div class="mt-3">
+
+<button
+name="guardar_entrada"
+class="btn btn-success">
+
+<i class="bi bi-box-arrow-in-down"></i>
+
+Registrar entrada
+
+</button>
+
+</div>
+
+</form>
+
+<h4>
+
+Últimas entradas
+
+</h4>
+
+<table class="table table-striped bg-white shadow">
+
+<thead>
+
+<tr>
+
+<th>Fecha</th>
+
+<th>Producto</th>
+
+<th>Cantidad</th>
+
+<th>Usuario</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<?php
+
+$lista=array_reverse($movimientos);
+
+foreach($lista as $m){
+
+    if($m["tipo"]!="Entrada")
+        continue;
+
+    echo "<tr>";
+
+    echo "<td>".$m["fecha"]."</td>";
+
+    echo "<td>".$m["producto"]."</td>";
+
+    echo "<td class='text-success fw-bold'>+".$m["cantidad"]."</td>";
+
+    echo "<td>".$m["usuario"]."</td>";
+
+    echo "</tr>";
+
+}
+
+?>
+
+</tbody>
+
+</table>
+
+<?php
 
 break;
 
@@ -1213,8 +1868,168 @@ break;
 
 case "salidas":
 
-echo "<h2>Salidas</h2>";
-echo "<div class='alert alert-warning'>Pendiente.</div>";
+$productos = leerJSON("productos");
+
+$movimientos = leerJSON("movimientos");
+
+?>
+
+<h2 class="mb-4">
+
+Salidas de mercancía
+
+</h2>
+
+<?php
+
+if(isset($_GET["error"])){
+
+    echo "<div class='alert alert-danger'>";
+
+    echo htmlspecialchars($_GET["error"]);
+
+    echo "</div>";
+
+}
+
+?>
+
+<form method="post" class="card shadow p-4 mb-4">
+
+<div class="row">
+
+<div class="col-md-5">
+
+<label>Producto</label>
+
+<select
+name="producto"
+class="form-select"
+required>
+
+<option value="">Seleccione...</option>
+
+<?php
+
+foreach($productos as $p){
+
+    echo "<option value='".$p["id"]."'>";
+
+    echo $p["codigo"];
+
+    echo " - ";
+
+    echo $p["nombre"];
+
+    echo " (Stock: ".$p["stock"].")";
+
+    echo "</option>";
+
+}
+
+?>
+
+</select>
+
+</div>
+
+<div class="col-md-2">
+
+<label>Cantidad</label>
+
+<input
+type="number"
+name="cantidad"
+class="form-control"
+required
+min="1">
+
+</div>
+
+<div class="col-md-5">
+
+<label>Observaciones</label>
+
+<input
+name="observaciones"
+class="form-control">
+
+</div>
+
+</div>
+
+<div class="mt-3">
+
+<button
+name="guardar_salida"
+class="btn btn-danger">
+
+<i class="bi bi-box-arrow-up"></i>
+
+Registrar salida
+
+</button>
+
+</div>
+
+</form>
+
+<h4>
+
+Últimas salidas
+
+</h4>
+
+<table class="table table-striped bg-white shadow">
+
+<thead>
+
+<tr>
+
+<th>Fecha</th>
+
+<th>Producto</th>
+
+<th>Cantidad</th>
+
+<th>Usuario</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<?php
+
+$lista = array_reverse($movimientos);
+
+foreach($lista as $m){
+
+    if($m["tipo"]!="Salida")
+        continue;
+
+    echo "<tr>";
+
+    echo "<td>".$m["fecha"]."</td>";
+
+    echo "<td>".$m["producto"]."</td>";
+
+    echo "<td class='text-danger fw-bold'>-".$m["cantidad"]."</td>";
+
+    echo "<td>".$m["usuario"]."</td>";
+
+    echo "</tr>";
+
+}
+
+?>
+
+</tbody>
+
+</table>
+
+<?php
 
 break;
 
@@ -1222,8 +2037,191 @@ break;
 
 case "historial":
 
-echo "<h2>Historial</h2>";
-echo "<div class='alert alert-warning'>Pendiente.</div>";
+$movimientos = array_reverse(leerJSON("movimientos"));
+
+$tipo = $_GET["tipo"] ?? "";
+
+$buscar = trim($_GET["buscar"] ?? "");
+
+?>
+
+<h2 class="mb-4">
+
+Historial de movimientos
+
+</h2>
+
+<form class="row g-3 mb-4">
+
+<input
+type="hidden"
+name="accion"
+value="historial">
+
+<div class="col-md-3">
+
+<label>Tipo</label>
+
+<select
+name="tipo"
+class="form-select">
+
+<option value="">Todos</option>
+
+<option value="Entrada" <?=($tipo=="Entrada")?"selected":""?>>
+
+Entradas
+
+</option>
+
+<option value="Salida" <?=($tipo=="Salida")?"selected":""?>>
+
+Salidas
+
+</option>
+
+</select>
+
+</div>
+
+<div class="col-md-5">
+
+<label>Producto</label>
+
+<input
+type="text"
+name="buscar"
+class="form-control"
+value="<?=htmlspecialchars($buscar)?>"
+placeholder="Buscar producto...">
+
+</div>
+
+<div class="col-md-2 d-flex align-items-end">
+
+<button class="btn btn-primary w-100">
+
+<i class="bi bi-search"></i>
+
+Filtrar
+
+</button>
+
+</div>
+
+<div class="col-md-2 d-flex align-items-end">
+
+<a
+href="?accion=historial"
+class="btn btn-secondary w-100">
+
+Limpiar
+
+</a>
+
+</div>
+
+</form>
+
+<table class="table table-striped table-hover bg-white shadow">
+
+<thead>
+
+<tr>
+
+<th>Fecha</th>
+
+<th>Tipo</th>
+
+<th>Producto</th>
+
+<th>Cantidad</th>
+
+<th>Usuario</th>
+
+<th>Observaciones</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<?php
+
+foreach($movimientos as $m){
+
+    if($tipo!="" && $m["tipo"]!=$tipo)
+        continue;
+
+    if(
+        $buscar!=""
+        &&
+        stripos($m["producto"],$buscar)===false
+    )
+        continue;
+
+    $color = ($m["tipo"]=="Entrada")
+        ? "text-success"
+        : "text-danger";
+
+    $signo = ($m["tipo"]=="Entrada")
+        ? "+"
+        : "-";
+
+    ?>
+
+    <tr>
+
+    <td><?=htmlspecialchars($m["fecha"])?></td>
+
+    <td>
+
+        <?php if($m["tipo"]=="Entrada"){ ?>
+
+            <span class="badge bg-success">
+
+            Entrada
+
+            </span>
+
+        <?php }else{ ?>
+
+            <span class="badge bg-danger">
+
+            Salida
+
+            </span>
+
+        <?php } ?>
+
+    </td>
+
+    <td><?=htmlspecialchars($m["producto"])?></td>
+
+    <td class="<?=$color?> fw-bold">
+
+        <?=$signo?><?=$m["cantidad"]?>
+
+    </td>
+
+    <td><?=htmlspecialchars($m["usuario"])?></td>
+
+    <td><?=htmlspecialchars($m["observaciones"])?></td>
+
+    </tr>
+
+    <?php
+
+}
+
+?>
+
+</tbody>
+
+</table>
+
+<?php
 
 break;
 
@@ -1231,8 +2229,135 @@ break;
 
 case "categorias":
 
-echo "<h2>Categorías</h2>";
-echo "<div class='alert alert-warning'>Pendiente.</div>";
+$categorias = leerJSON("categorias");
+
+?>
+
+<div class="d-flex justify-content-between mb-3">
+
+<h2>Categorías</h2>
+
+<button
+class="btn btn-primary"
+data-bs-toggle="modal"
+data-bs-target="#nuevaCategoria">
+
+<i class="bi bi-plus-circle"></i>
+
+Nueva categoría
+
+</button>
+
+</div>
+
+<table class="table table-striped bg-white shadow">
+
+<thead>
+
+<tr>
+
+<th>Nombre</th>
+
+<th width="120">Acciones</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<?php
+
+foreach($categorias as $c){
+
+?>
+
+<tr>
+
+<td>
+
+<?=htmlspecialchars($c["nombre"])?>
+
+</td>
+
+<td>
+
+<a
+href="?accion=categorias&borrar_categoria=<?=$c["id"]?>"
+class="btn btn-danger btn-sm"
+onclick="return confirm('¿Eliminar categoría?')">
+
+<i class="bi bi-trash"></i>
+
+</a>
+
+</td>
+
+</tr>
+
+<?php
+
+}
+
+?>
+
+</tbody>
+
+</table>
+
+<div class="modal fade" id="nuevaCategoria">
+
+<div class="modal-dialog">
+
+<div class="modal-content">
+
+<form method="post">
+
+<div class="modal-header">
+
+<h5>Nueva categoría</h5>
+
+<button
+type="button"
+class="btn-close"
+data-bs-dismiss="modal">
+
+</button>
+
+</div>
+
+<div class="modal-body">
+
+<label>Nombre</label>
+
+<input
+name="nombre"
+class="form-control"
+required>
+
+</div>
+
+<div class="modal-footer">
+
+<button
+class="btn btn-success"
+name="crear_categoria">
+
+Guardar
+
+</button>
+
+</div>
+
+</form>
+
+</div>
+
+</div>
+
+</div>
+
+<?php
 
 break;
 
@@ -1240,8 +2365,195 @@ break;
 
 case "proveedores":
 
-echo "<h2>Proveedores</h2>";
-echo "<div class='alert alert-warning'>Pendiente.</div>";
+$proveedores = leerJSON("proveedores");
+
+?>
+
+<div class="d-flex justify-content-between mb-3">
+
+<h2>Proveedores</h2>
+
+<button
+class="btn btn-primary"
+data-bs-toggle="modal"
+data-bs-target="#nuevoProveedor">
+
+<i class="bi bi-plus-circle"></i>
+
+Nuevo proveedor
+
+</button>
+
+</div>
+
+<table class="table table-striped table-hover bg-white shadow">
+
+<thead>
+
+<tr>
+
+<th>Empresa</th>
+
+<th>Contacto</th>
+
+<th>Teléfono</th>
+
+<th>Email</th>
+
+<th width="120">Acciones</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<?php foreach($proveedores as $p){ ?>
+
+<tr>
+
+<td><?=htmlspecialchars($p["nombre"])?></td>
+
+<td><?=htmlspecialchars($p["contacto"])?></td>
+
+<td><?=htmlspecialchars($p["telefono"])?></td>
+
+<td><?=htmlspecialchars($p["email"])?></td>
+
+<td>
+
+<a
+href="?accion=proveedores&borrar_proveedor=<?=$p["id"]?>"
+class="btn btn-danger btn-sm"
+onclick="return confirm('¿Eliminar proveedor?')">
+
+<i class="bi bi-trash"></i>
+
+</a>
+
+</td>
+
+</tr>
+
+<?php } ?>
+
+</tbody>
+
+</table>
+
+<div class="modal fade" id="nuevoProveedor">
+
+<div class="modal-dialog modal-lg">
+
+<div class="modal-content">
+
+<form method="post">
+
+<div class="modal-header">
+
+<h5>Nuevo proveedor</h5>
+
+<button
+type="button"
+class="btn-close"
+data-bs-dismiss="modal">
+</button>
+
+</div>
+
+<div class="modal-body">
+
+<div class="row">
+
+<div class="col-md-6 mb-3">
+
+<label>Empresa</label>
+
+<input
+name="nombre"
+class="form-control"
+required>
+
+</div>
+
+<div class="col-md-6 mb-3">
+
+<label>Persona de contacto</label>
+
+<input
+name="contacto"
+class="form-control">
+
+</div>
+
+<div class="col-md-6 mb-3">
+
+<label>Teléfono</label>
+
+<input
+name="telefono"
+class="form-control">
+
+</div>
+
+<div class="col-md-6 mb-3">
+
+<label>Email</label>
+
+<input
+type="email"
+name="email"
+class="form-control">
+
+</div>
+
+<div class="col-12 mb-3">
+
+<label>Dirección</label>
+
+<textarea
+name="direccion"
+class="form-control"
+rows="2"></textarea>
+
+</div>
+
+<div class="col-12">
+
+<label>Observaciones</label>
+
+<textarea
+name="observaciones"
+class="form-control"
+rows="3"></textarea>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="modal-footer">
+
+<button
+class="btn btn-success"
+name="crear_proveedor">
+
+Guardar proveedor
+
+</button>
+
+</div>
+
+</form>
+
+</div>
+
+</div>
+
+</div>
+
+<?php
 
 break;
 
