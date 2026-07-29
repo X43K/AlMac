@@ -213,12 +213,12 @@ function login($usuario,$password){
     foreach(usuarios() as $u){
 
         if(
-            $u["usuario"]==$usuario &&
+            strtolower($u["usuario"]) == strtolower($usuario) &&
             password_verify($password,$u["password"]) &&
             $u["activo"]
         ){
 
-            $_SESSION["usuario"]=$u;
+            $_SESSION["usuario"] = $u;
 
             return true;
 
@@ -968,17 +968,11 @@ if(!estaLogueado()){
 <style>
 
 body{
-
-background:#0f172a;
-
-display:flex;
-
-justify-content:center;
-
-align-items:center;
-
-height:100vh;
-
+    background:#0f172a;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
 }
 
 .card{
@@ -988,6 +982,30 @@ width:400px;
 border-radius:15px;
 
 }
+.login-container{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+}
+
+/* ===== CUADRO DE COOKIES ===== */
+.cookies-box {
+    margin-top: 25px;
+    padding: 12px;
+    border: 1px solid #ccc;
+    background: #f7f7f7;
+    color: #333;
+    width: 330px;
+    font-size: 13px;
+    border-radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+    .cookies-box {
+        border: 1px solid #555;
+        background: #1a1a1a;
+        color: #ccc;
+    }
+}
 
 </style>
 
@@ -995,60 +1013,45 @@ border-radius:15px;
 
 <body>
 
-<div class="card shadow">
+<div class="login-container">
 
-<div class="card-body">
+    <div class="card shadow">
+        <div class="card-body">
 
-<h3 class="mb-4 text-center">
+            <h3 class="mb-4 text-center">
+                Gestión de Almacén
+            </h3>
 
-Gestión de Almacén
+            <?php
+            if(isset($errorLogin))
+                echo "<div class='alert alert-danger'>$errorLogin</div>";
+            ?>
 
-</h3>
+            <form method="post">
 
-<?php
+                <div class="mb-3">
+                    <label>Usuario</label>
+                    <input name="usuario" class="form-control" required>
+                </div>
 
-if(isset($errorLogin))
+                <div class="mb-3">
+                    <label>Contraseña</label>
+                    <input type="password" name="password" class="form-control" required>
+                </div>
 
-echo "<div class='alert alert-danger'>$errorLogin</div>";
+                <button name="login" class="btn btn-primary w-100">
+                    Entrar
+                </button>
 
-?>
+            </form>
 
-<form method="post">
+        </div>
+    </div>
 
-<div class="mb-3">
-
-<label>Usuario</label>
-
-<input
-name="usuario"
-class="form-control"
-required>
-
-</div>
-
-<div class="mb-3">
-
-<label>Contraseña</label>
-
-<input
-type="password"
-name="password"
-class="form-control"
-required>
-
-</div>
-
-<button
-name="login"
-class="btn btn-primary w-100">
-
-Entrar
-
-</button>
-
-</form>
-
-</div>
+    <div class="cookies-box">
+        Esta web utiliza únicamente cookies técnicas necesarias para el inicio de sesión.
+        No se emplean cookies de análisis, publicidad ni de terceros.
+    </div>
 
 </div>
 
@@ -1090,15 +1093,16 @@ background:#f5f5f5;
 }
 
 .sidebar{
+    width:240px;
+    height:100vh;
+    background:#1e293b;
+    position:fixed;
+    left:0;
+    top:0;
+    overflow-y:auto;
 
-width:240px;
-height:100vh;
-background:#1e293b;
-position:fixed;
-left:0;
-top:0;
-overflow:auto;
-
+    display:flex;
+    flex-direction:column;
 }
 
 .sidebar h3{
@@ -1125,19 +1129,15 @@ color:white;
 }
 
 .version-app{
+    margin-top:auto;
+    padding:15px;
+    color:#94a3b8;
+    font-size:12px;
+    line-height:1.4;
+}
 
-position:absolute;
-
-bottom:15px;
-
-left:15px;
-
-color:#94a3b8;
-
-font-size:12px;
-
-line-height:1.4;
-
+.sidebar hr{
+    margin-bottom:0;
 }
 
 .main{
@@ -1169,7 +1169,7 @@ font-weight:bold;
 
 <div class="sidebar">
 
-<h3><i class="bi bi-box-seam"></i> Almacén</h3>
+<h3><i class="bi bi-box-seam"></i> AlMac</h3>
 
   <div class="text-center text-white mb-4">
 
@@ -1283,10 +1283,11 @@ $stockCritico = [];
 
 $stockBajo = [];
 
+$stockCorrecto = [];
+
 foreach($productos as $p){
 
     $stock = $p["stock"] ?? 0;
-
     $min = $p["stock_minimo"] ?? 0;
 
     $totalStock += $stock;
@@ -1294,13 +1295,17 @@ foreach($productos as $p){
     if($stock <= 0){
 
         $sinStock++;
-
         $stockCritico[] = $p;
 
     }
     elseif($stock <= $min){
 
         $stockBajo[] = $p;
+
+    }
+    else{
+
+        $stockCorrecto[] = $p;
 
     }
 
@@ -1401,6 +1406,150 @@ Sin stock
 
 <hr>
 
+<div class="row">
+
+<div class="col-lg-4 mb-3">
+
+<div class="card border-danger shadow">
+
+<div class="card-header bg-danger text-white">
+
+<i class="bi bi-exclamation-octagon-fill"></i>
+
+Stock crítico
+
+</div>
+
+<div class="card-body">
+
+<?php
+
+if(count($stockCritico)==0){
+
+    echo "<div class='alert alert-success mb-0'>
+    No hay productos sin stock.
+    </div>";
+
+}else{
+
+    foreach($stockCritico as $p){
+
+        echo "<div class='d-flex justify-content-between border-bottom py-2'>";
+
+        echo "<strong>".$p["nombre"]."</strong>";
+
+        echo "<span class='badge bg-danger'>".$p["stock"]." / ".$p["stock_minimo"]."</span>";
+
+        echo "</div>";
+
+    }
+
+}
+
+?>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-lg-4 mb-3">
+
+<div class="card border-warning shadow">
+
+<div class="card-header bg-warning">
+
+<i class="bi bi-exclamation-triangle-fill"></i>
+
+Stock bajo
+
+</div>
+
+<div class="card-body">
+
+<?php
+
+if(count($stockBajo)==0){
+
+    echo "<div class='alert alert-success mb-0'>
+    Todos los productos están por encima del mínimo.
+    </div>";
+
+}else{
+
+    foreach($stockBajo as $p){
+
+        echo "<div class='d-flex justify-content-between border-bottom py-2'>";
+
+        echo "<strong>".$p["nombre"]."</strong>";
+
+        echo "<span class='badge bg-warning text-dark'>".$p["stock"]." / ".$p["stock_minimo"]."</span>";
+
+        echo "</div>";
+
+    }
+
+}
+
+?>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-lg-4 mb-3">
+
+<div class="card border-success shadow">
+
+<div class="card-header bg-success text-white">
+
+<i class="bi bi-check-circle-fill"></i>
+
+Resto almacén
+
+</div>
+
+<div class="card-body">
+
+<?php
+
+if(count($stockCorrecto)==0){
+
+    echo "<div class='alert alert-warning mb-0'>
+    No hay productos con stock correcto.
+    </div>";
+
+}else{
+
+    foreach($stockCorrecto as $p){
+
+        echo "<div class='d-flex justify-content-between border-bottom py-2'>";
+
+        echo "<strong>".$p["nombre"]."</strong>";
+
+        echo "<span class='badge bg-success'>".$p["stock"]." / ".$p["stock_minimo"]."</span>";
+
+        echo "</div>";
+
+    }
+
+}
+
+?>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+  
+<hr>
+
 <h4>
 
 Últimos movimientos
@@ -1454,104 +1603,6 @@ echo "</tr>";
 </tbody>
 
 </table>
-
-  <hr>
-
-<div class="row">
-
-<div class="col-md-6">
-
-<div class="card border-danger shadow">
-
-<div class="card-header bg-danger text-white">
-
-<i class="bi bi-exclamation-octagon-fill"></i>
-
-Stock crítico
-
-</div>
-
-<div class="card-body">
-
-<?php
-
-if(count($stockCritico)==0){
-
-    echo "<div class='alert alert-success mb-0'>
-    No hay productos sin stock.
-    </div>";
-
-}else{
-
-    foreach($stockCritico as $p){
-
-        echo "<div class='d-flex justify-content-between border-bottom py-2'>";
-
-        echo "<strong>".$p["nombre"]."</strong>";
-
-        echo "<span class='badge bg-danger'>".$p["stock"]." / ".$p["stock_minimo"]."</span>";
-
-        echo "</div>";
-
-    }
-
-}
-
-?>
-
-</div>
-
-</div>
-
-</div>
-
-<div class="col-md-6">
-
-<div class="card border-warning shadow">
-
-<div class="card-header bg-warning">
-
-<i class="bi bi-exclamation-triangle-fill"></i>
-
-Stock bajo
-
-</div>
-
-<div class="card-body">
-
-<?php
-
-if(count($stockBajo)==0){
-
-    echo "<div class='alert alert-success mb-0'>
-    Todos los productos están por encima del mínimo.
-    </div>";
-
-}else{
-
-    foreach($stockBajo as $p){
-
-        echo "<div class='d-flex justify-content-between border-bottom py-2'>";
-
-        echo "<strong>".$p["nombre"]."</strong>";
-
-        echo "<span class='badge bg-warning text-dark'>".$p["stock"]." / ".$p["stock_minimo"]."</span>";
-
-        echo "</div>";
-
-    }
-
-}
-
-?>
-
-</div>
-
-</div>
-
-</div>
-
-</div>
   
 <?php
 
