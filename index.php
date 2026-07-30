@@ -1,8 +1,7 @@
 <?php
 /**********************************************************************
  * GESTIÓN DE ALMACÉN
- * Versión 1.0
- * Todo en un único archivo PHP
+ * AlMac
  **********************************************************************/
 
 error_reporting(E_ALL);
@@ -14,46 +13,90 @@ session_start();
  CONFIGURACIÓN
 **********************************************************************/
 
-define("DATA_DIR",__DIR__."/data");
+define("DATA_DIR", __DIR__."/data");
 
-if(!is_dir(DATA_DIR))
+if(!is_dir(DATA_DIR)){
     mkdir(DATA_DIR,0777,true);
+}
 
-$archivos=[
+$archivos = [
     "productos",
     "movimientos",
     "categorias",
     "proveedores",
-    "usuarios"
+    "usuarios",
+    "almacenes",
+    "stock"
 ];
 
 foreach($archivos as $a){
 
     $f = DATA_DIR."/$a.json";
 
-    if(!file_exists($f)){
+    // ===== USUARIOS =====
+    if($a=="usuarios"){
 
-        if($a=="usuarios"){
+        if(!file_exists($f)){
 
-            $admin=[
+            $admin = [[
 
-                [
-                    "id"=>1,
-                    "usuario"=>"admin",
-                    "password"=>password_hash("admin",PASSWORD_DEFAULT),
-                    "nombre"=>"Administrador",
-                    "rol"=>"Administrador",
-                    "activo"=>1
-                ]
+                "id"       => 1,
+                "usuario"  => "admin",
+                "password" => password_hash("admin", PASSWORD_DEFAULT),
+                "nombre"   => "Super Administrador",
+                "rol"      => "superadmin",
+                "almacen"  => 0,
+                "activo"   => 1
 
-            ];
+            ]];
 
             file_put_contents(
                 $f,
-                json_encode($admin,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE)
+                json_encode(
+                    $admin,
+                    JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+                )
             );
 
-        }else{
+        }
+
+        continue;
+    }
+
+    // ===== RESTO DE ARCHIVOS =====
+    if(!file_exists($f)){
+
+        if($a=="almacenes"){
+
+            $almacenes = [[
+
+                "id" => 1,
+                "nombre" => "Almacén Principal",
+                "direccion" => ""
+
+            ]];
+
+            file_put_contents(
+                $f,
+                json_encode(
+                    $almacenes,
+                    JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+                )
+            );
+
+        }
+        elseif($a=="stock"){
+
+            file_put_contents(
+                $f,
+                json_encode(
+                    [],
+                    JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+                )
+            );
+
+        }
+        else{
 
             file_put_contents($f,"[]");
 
@@ -62,7 +105,6 @@ foreach($archivos as $a){
     }
 
 }
-
 /**********************************************************************
  FUNCIONES JSON
 **********************************************************************/
@@ -94,6 +136,297 @@ function guardarJSON($archivo,$datos){
             JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE
         )
     );
+
+}
+// Crear automáticamente el superadministrador si no existe ningún usuario
+if(count(leerJSON("usuarios"))==0){
+
+    guardarJSON("usuarios", [[
+
+        "id"       => 1,
+        "usuario"  => "admin",
+        "password" => password_hash("admin", PASSWORD_DEFAULT),
+        "nombre"   => "Super Administrador",
+        "rol"      => "superadmin",
+        "almacen"  => 0,
+        "activo"   => 1
+
+    ]]);
+
+}
+
+/**********************************************************************
+ STOCK
+**********************************************************************/
+
+function stock(){
+
+    return leerJSON("stock");
+
+}
+
+function guardarStock($datos){
+
+    guardarJSON("stock",$datos);
+
+}
+
+function siguienteIdStock(){
+
+    $stock=stock();
+
+    $id=0;
+
+    foreach($stock as $s){
+
+        if($s["id"]>$id)
+            $id=$s["id"];
+
+    }
+
+    return $id+1;
+
+}
+
+function buscarStock($producto,$almacen){
+
+    foreach(stock() as $s){
+
+        if(
+            intval($s["producto"])==intval($producto)
+            &&
+            intval($s["almacen"])==intval($almacen)
+        ){
+
+            return $s;
+
+        }
+
+    }
+
+    return null;
+
+}
+
+function stockProductoAlmacen($producto,$almacen){
+
+    $s=buscarStock($producto,$almacen);
+
+    if(!$s)
+        return 0;
+
+    return intval($s["stock"]);
+
+}
+
+function datosStockProductoAlmacen($producto,$almacen){
+
+    $s = buscarStock($producto,$almacen);
+
+    if(!$s){
+
+        return [
+
+            "stock"=>0,
+
+            "stock_minimo"=>0,
+
+            "ubicacion"=>""
+
+        ];
+
+    }
+
+    return $s;
+
+}
+
+function sumarStock($producto,$almacen,$cantidad){
+
+    $stock = stock();
+
+    foreach($stock as &$s){
+
+        if(
+            intval($s["producto"]) == intval($producto)
+            &&
+            intval($s["almacen"]) == intval($almacen)
+        ){
+
+            $s["stock"] += intval($cantidad);
+
+            guardarStock($stock);
+
+            return true;
+
+        }
+
+    }
+
+    return false;
+
+}
+
+function restarStock($producto,$almacen,$cantidad){
+
+    $stock = stock();
+
+    foreach($stock as &$s){
+
+        if(
+            intval($s["producto"]) == intval($producto)
+            &&
+            intval($s["almacen"]) == intval($almacen)
+        ){
+
+            if($s["stock"] < $cantidad)
+                return false;
+
+            $s["stock"] -= intval($cantidad);
+
+            guardarStock($stock);
+
+            return true;
+
+        }
+
+    }
+
+    return false;
+
+}
+
+function stockMinimoProductoAlmacen($producto,$almacen){
+
+    $s=buscarStock($producto,$almacen);
+
+    if(!$s)
+        return 0;
+
+    return intval($s["stock_minimo"]);
+
+}
+
+function productosUsuario(){
+
+    $productos=leerJSON("productos");
+
+    if(esSuperAdmin())
+        return $productos;
+
+    $resultado=[];
+
+    foreach($productos as $p){
+
+        if(($p["almacen"] ?? 1)==almacenUsuario()){
+
+            $resultado[]=$p;
+
+        }
+
+    }
+
+    return $resultado;
+
+}
+
+/**********************************************************************
+ ALMACENES
+**********************************************************************/
+
+function almacenes(){
+
+    return leerJSON("almacenes");
+
+}
+
+function siguienteIdAlmacen(){
+
+    $max=0;
+
+    foreach(almacenes() as $a){
+
+        if($a["id"]>$max)
+            $max=$a["id"];
+
+    }
+
+    return $max+1;
+
+}
+
+function crearAlmacen($nombre,$direccion){
+
+    $datos=almacenes();
+
+    $datos[]=[
+
+        "id"=>siguienteIdAlmacen(),
+
+        "nombre"=>trim($nombre),
+
+        "direccion"=>trim($direccion)
+
+    ];
+
+    guardarJSON("almacenes",$datos);
+
+}
+
+function editarAlmacen($id,$nombre,$direccion){
+
+    $datos=almacenes();
+
+    foreach($datos as &$a){
+
+        if($a["id"]==$id){
+
+            $a["nombre"]=trim($nombre);
+
+            $a["direccion"]=trim($direccion);
+
+        }
+
+    }
+
+    guardarJSON("almacenes",$datos);
+
+}
+
+function eliminarAlmacen($id){
+
+    // nunca borrar el principal
+
+    if($id==1)
+        return;
+
+    // comprobar usuarios
+
+    foreach(usuarios() as $u){
+
+        if(intval($u["almacen"])==$id)
+            return;
+
+    }
+
+    // comprobar stock
+
+    foreach(stock() as $s){
+
+        if(intval($s["almacen"])==$id)
+            return;
+
+    }
+
+    $datos=array_values(array_filter(
+
+        almacenes(),
+
+        fn($a)=>$a["id"]!=$id
+
+    ));
+
+    guardarJSON("almacenes",$datos);
 
 }
 
@@ -174,11 +507,8 @@ function actualizarProducto($datos){
             $p["nombre"] = trim($datos["nombre"]);
             $p["categoria"] = intval($datos["categoria"]);
             $p["proveedor"] = intval($datos["proveedor"]);
-            $p["ubicacion"] = trim($datos["ubicacion"]);
             $p["precio_compra"] = floatval($datos["precio_compra"]);
             $p["precio_venta"] = floatval($datos["precio_venta"]);
-            $p["stock"] = intval($datos["stock"]);
-            $p["stock_minimo"] = intval($datos["stock_minimo"]);
 
             break;
 
@@ -188,29 +518,164 @@ function actualizarProducto($datos){
 
     guardarJSON("productos",$productos);
 
+
+
+$stock = stock();
+
+$encontrado = false;
+
+foreach($stock as &$s){
+
+    if(
+        intval($s["producto"]) == intval($datos["id"])
+        &&
+        intval($s["almacen"]) == almacenUsuario()
+    ){
+
+        $s["stock"] = intval($datos["stock"]);
+        $s["stock_minimo"] = intval($datos["stock_minimo"]);
+        $s["ubicacion"] = trim($datos["ubicacion"]);
+
+        $encontrado = true;
+
+        break;
+
+    }
+
+}
+
+
+
+if(!$encontrado){
+
+    $stock[]=[
+
+        "id"=>siguienteIdStock(),
+
+        "producto"=>intval($datos["id"]),
+
+        "almacen"=>almacenUsuario(),
+
+        "stock"=>intval($datos["stock"]),
+
+        "stock_minimo"=>intval($datos["stock_minimo"]),
+
+        "ubicacion"=>trim($datos["ubicacion"])
+
+    ];
+
+}
+
+
+
+guardarStock($stock);
+
 }
 /**********************************************************************
  USUARIOS
 **********************************************************************/
 
-function esAdministrador(){
+function rol(){
 
     if(!isset($_SESSION["usuario"]))
-        return false;
+        return "";
 
-    return $_SESSION["usuario"]["rol"]=="Administrador";
+    return strtolower($_SESSION["usuario"]["rol"]);
+
+}
+
+function esSuperAdmin(){
+
+    return rol()=="superadmin";
+
+}
+
+function esAdmin(){
+
+    return rol()=="admin";
+
+}
+
+function esOperario(){
+
+    return rol()=="operario";
+
+}
+
+function esLector(){
+
+    return rol()=="lector";
+
+}
+
+function puedeEditar(){
+
+    return in_array(
+        rol(),
+        ["superadmin","admin","operario"]
+    );
+
+}
+
+function puedeGestionUsuarios(){
+
+    return in_array(
+        rol(),
+        ["superadmin","admin"]
+    );
+
+}
+
+function puedeGestionAlmacen(){
+
+    return in_array(
+        rol(),
+        ["superadmin","admin","operario"]
+    );
+
+}
+
+function almacenUsuario(){
+
+    if(!isset($_SESSION["usuario"]))
+        return 0;
+
+    return intval($_SESSION["usuario"]["almacen"]);
 
 }
 
 function usuarios(){
 
-    return leerJSON("usuarios");
+    $usuarios = leerJSON("usuarios");
+
+    // El superadministrador ve todos
+    if(esSuperAdmin()){
+        return $usuarios;
+    }
+
+    // El administrador solo ve usuarios de su almacén
+    $resultado = [];
+
+    foreach($usuarios as $u){
+
+        // Nunca puede ver superadministradores
+        if($u["rol"]=="superadmin"){
+            continue;
+        }
+
+        if(intval($u["almacen"])==almacenUsuario()){
+            $resultado[]=$u;
+        }
+
+    }
+
+    return $resultado;
 
 }
 
 function login($usuario,$password){
 
-    foreach(usuarios() as $u){
+    foreach(leerJSON("usuarios") as $u){
 
         if(
             strtolower($u["usuario"]) == strtolower($usuario) &&
@@ -272,27 +737,34 @@ function siguienteIdUsuario(){
 
 function crearUsuario($datos){
 
+    if(!esSuperAdmin()){
+        $datos["almacen"] = almacenUsuario();
+    }
+  
     $usuarios=leerJSON("usuarios");
 
 
     $usuarios[]=[
 
-        "id"=>siguienteIdUsuario(),
+    "id"=>siguienteIdUsuario(),
 
-        "usuario"=>$datos["usuario"],
+    "usuario"=>$datos["usuario"],
 
-        "password"=>password_hash(
-            $datos["password"],
-            PASSWORD_DEFAULT
-        ),
+    "password"=>password_hash(
+        $datos["password"],
+        PASSWORD_DEFAULT
+    ),
 
-        "nombre"=>$datos["nombre"],
+    "nombre"=>$datos["nombre"],
 
-        "rol"=>$datos["rol"],
+    "rol"=>$datos["rol"],
 
-        "activo"=>1
+"almacen"=>esSuperAdmin()
+    ? intval($datos["almacen"])
+    : almacenUsuario(),
+    "activo"=>1
 
-    ];
+];
 
 
     guardarJSON("usuarios",$usuarios);
@@ -303,23 +775,36 @@ function crearUsuario($datos){
 
 function eliminarUsuario($id){
 
-    $usuarios=leerJSON("usuarios");
+    $usuarios = leerJSON("usuarios");
 
+    foreach($usuarios as $u){
 
-    $usuarios=array_filter(
-        $usuarios,
-        function($u) use ($id){
+        if($u["id"]==$id && $u["rol"]=="superadmin"){
 
-            return $u["id"]!=$id;
+            $total=0;
+
+            foreach($usuarios as $x){
+
+                if($x["rol"]=="superadmin")
+                    $total++;
+
+            }
+
+            if($total<=1)
+                return false;
 
         }
-    );
 
+    }
 
-    guardarJSON(
-        "usuarios",
-        array_values($usuarios)
-    );
+    $usuarios=array_values(array_filter(
+        $usuarios,
+        fn($u)=>$u["id"]!=$id
+    ));
+
+    guardarJSON("usuarios",$usuarios);
+
+    return true;
 
 }
 
@@ -343,6 +828,103 @@ function cambiarPasswordUsuario($id,$password){
 
     }
 
+
+    guardarJSON("usuarios",$usuarios);
+
+}
+
+function editarUsuario($datos){
+
+    $usuarios = leerJSON("usuarios");
+
+    foreach($usuarios as &$u){
+
+        if($u["id"] == intval($datos["id"])){
+
+            $u["usuario"] = trim($datos["usuario"]);
+            $u["nombre"] = trim($datos["nombre"]);
+if(
+    $u["rol"]=="superadmin"
+    &&
+    $datos["rol"]!="superadmin"
+){
+
+    $total=0;
+
+    foreach($usuarios as $x){
+
+        if($x["rol"]=="superadmin")
+            $total++;
+
+    }
+
+    if($total>1){
+
+        $u["rol"]=$datos["rol"];
+
+    }
+
+}
+else{
+
+    $u["rol"]=$datos["rol"];
+
+}
+
+if(esSuperAdmin()){
+
+    $u["almacen"] = intval($datos["almacen"]);
+
+}
+
+$nuevoActivo = isset($datos["activo"]) ? 1 : 0;
+
+if(
+    $u["rol"]=="superadmin"
+    &&
+    $nuevoActivo==0
+){
+
+    $total=0;
+
+    foreach($usuarios as $x){
+
+        if(
+            $x["rol"]=="superadmin"
+            &&
+            $x["activo"]
+        ){
+            $total++;
+        }
+
+    }
+
+    if($total>1){
+
+        $u["activo"]=0;
+
+    }
+
+}
+else{
+
+    $u["activo"]=$nuevoActivo;
+
+}
+            if(trim($datos["password"])!=""){
+
+                $u["password"] = password_hash(
+                    $datos["password"],
+                    PASSWORD_DEFAULT
+                );
+
+            }
+
+            break;
+
+        }
+
+    }
 
     guardarJSON("usuarios",$usuarios);
 
@@ -373,98 +955,109 @@ function siguienteIdMovimiento(){
 
 function registrarMovimiento($tipo,$producto_id,$cantidad,$observaciones=""){
 
-    $productos=leerJSON("productos");
+    $productos = leerJSON("productos");
+    $movimientos = leerJSON("movimientos");
 
-    $movimientos=leerJSON("movimientos");
+    $nombreProducto = "";
 
-    foreach($productos as &$p){
+    foreach($productos as $p){
 
-        if($p["id"]==$producto_id){
+        if($p["id"] == $producto_id){
 
-if($tipo=="Entrada"){
-
-    $p["stock"] += $cantidad;
-
-}
-
-if($tipo=="Salida"){
-
-    if($p["stock"] < $cantidad){
-
-        return "No hay suficiente stock.";
-
-    }
-
-    $p["stock"] -= $cantidad;
-
-}
-
-            $movimientos[]=[
-
-                "id"=>siguienteIdMovimiento(),
-
-                "fecha"=>date("Y-m-d H:i:s"),
-
-                "tipo"=>$tipo,
-
-                "producto_id"=>$p["id"],
-
-                "producto"=>$p["nombre"],
-
-                "cantidad"=>$cantidad,
-
-                "usuario"=>$_SESSION["usuario"]["usuario"],
-
-                "observaciones"=>$observaciones
-
-            ];
-
+            $nombreProducto = $p["nombre"];
             break;
 
         }
 
     }
 
-    guardarJSON("productos",$productos);
+    if($nombreProducto=="")
+        return "Producto no encontrado.";
+
+    if($tipo=="Entrada"){
+
+        if(!sumarStock(
+            $producto_id,
+            almacenUsuario(),
+            $cantidad
+        )){
+            return "No existe el producto en este almacén.";
+        }
+
+    }
+
+    if($tipo=="Salida"){
+
+        if(!restarStock(
+            $producto_id,
+            almacenUsuario(),
+            $cantidad
+        )){
+            return "No hay suficiente stock.";
+        }
+
+    }
+
+    $movimientos[]=[
+
+        "id"=>siguienteIdMovimiento(),
+
+        "fecha"=>date("Y-m-d H:i:s"),
+
+        "tipo"=>$tipo,
+
+        "producto_id"=>$producto_id,
+
+        "producto"=>$nombreProducto,
+
+        "almacen"=>almacenUsuario(),
+
+        "cantidad"=>$cantidad,
+
+        "usuario"=>$_SESSION["usuario"]["usuario"],
+
+        "observaciones"=>$observaciones
+
+    ];
 
     guardarJSON("movimientos",$movimientos);
-return true;
+
+    return true;
+
 }
+
+
 
 function eliminarMovimiento($id){
 
     $movimientos = leerJSON("movimientos");
-    $productos = leerJSON("productos");
 
     foreach($movimientos as $k=>$m){
 
-        if($m["id"]==$id){
+        if($m["id"] == $id){
 
-            foreach($productos as &$p){
+            // Deshacer el movimiento
+            if($m["tipo"] == "Entrada"){
 
-                if($p["id"]==$m["producto_id"]){
+                restarStock(
+                    $m["producto_id"],
+                    $m["almacen"],
+                    $m["cantidad"]
+                );
 
-                    if($m["tipo"]=="Entrada"){
+            }
+            elseif($m["tipo"] == "Salida"){
 
-                        $p["stock"] -= $m["cantidad"];
-
-                    }
-
-                    if($m["tipo"]=="Salida"){
-
-                        $p["stock"] += $m["cantidad"];
-
-                    }
-
-                    break;
-
-                }
+                sumarStock(
+                    $m["producto_id"],
+                    $m["almacen"],
+                    $m["cantidad"]
+                );
 
             }
 
+            // Eliminar del historial
             unset($movimientos[$k]);
-
-            guardarJSON("productos",$productos);
 
             guardarJSON(
                 "movimientos",
@@ -713,11 +1306,11 @@ if($accion=="logout"){
 
 if(isset($_POST["crear_usuario"])){
 
-    if(esAdministrador()){
+    if(puedeGestionUsuarios()){
 
-        crearUsuario($_POST);
+    crearUsuario($_POST);
 
-    }
+}
 
     header("Location:?accion=usuarios");
 
@@ -725,15 +1318,30 @@ if(isset($_POST["crear_usuario"])){
 
 }
 
+if(isset($_POST["editar_usuario"])){
 
+    if(puedeGestionUsuarios()){
+
+        editarUsuario($_POST);
+
+    }
+
+    header("Location:?accion=usuarios");
+    exit;
+
+}
 
 if(isset($_GET["borrar_usuario"])){
 
-    if(esAdministrador()){
+    if(puedeGestionUsuarios()){
 
-        eliminarUsuario(
-            intval($_GET["borrar_usuario"])
-        );
+        $id=intval($_GET["borrar_usuario"]);
+
+        if($id!=$_SESSION["usuario"]["id"]){
+
+            eliminarUsuario($id);
+
+        }
 
     }
 
@@ -752,11 +1360,11 @@ if(isset($_POST["cambiar_password"])){
     $puede=false;
 
 
-    if(esAdministrador()){
+    if(puedeGestionUsuarios()){
 
-        $puede=true;
+    $puede=true;
 
-    }
+}
 
 
     if(
@@ -820,29 +1428,43 @@ if(isset($_POST["guardar_producto"])){
 
     $productos[] = [
 
-        "id" => siguienteIdProducto(),
+    "id" => siguienteIdProducto(),
 
-        "codigo" => siguienteCodigoProducto(),
+    "codigo" => siguienteCodigoProducto(),
 
-        "nombre" => trim($_POST["nombre"]),
+    "nombre" => trim($_POST["nombre"]),
 
-        "categoria" => intval($_POST["categoria"]),
+    "categoria" => intval($_POST["categoria"]),
 
-        "proveedor" => intval($_POST["proveedor"]),
+    "proveedor" => intval($_POST["proveedor"]),
 
-        "ubicacion" => trim($_POST["ubicacion"]),
+    "precio_compra" => floatval($_POST["precio_compra"]),
 
-        "precio_compra" => floatval($_POST["precio_compra"]),
-
-        "precio_venta" => floatval($_POST["precio_venta"]),
-
-        "stock" => intval($_POST["stock"]),
-
-        "stock_minimo" => intval($_POST["stock_minimo"])
+    "precio_venta" => floatval($_POST["precio_venta"])
 
     ];
 
     guardarJSON("productos",$productos);
+  
+  $stock = stock();
+
+$stock[] = [
+
+    "id" => siguienteIdStock(),
+
+    "producto" => end($productos)["id"],
+
+    "almacen" => almacenUsuario(),
+
+    "stock" => intval($_POST["stock"]),
+
+    "stock_minimo" => intval($_POST["stock_minimo"]),
+
+    "ubicacion" => trim($_POST["ubicacion"])
+
+];
+
+guardarStock($stock);
 
     header("Location:?accion=productos");
 
@@ -852,11 +1474,11 @@ if(isset($_POST["guardar_producto"])){
 
 if(isset($_POST["editar_producto"])){
 
-    if(esAdministrador()){
+    if(puedeEditar()){
 
-        actualizarProducto($_POST);
+    actualizarProducto($_POST);
 
-    }
+}
 
     header("Location:?accion=productos");
     exit;
@@ -884,6 +1506,33 @@ if(isset($_POST["guardar_entrada"])){
     header("Location:?accion=entradas");
 
     exit;
+
+}
+
+function movimientosUsuario(){
+
+    $movimientos = leerJSON("movimientos");
+
+    if(esSuperAdmin())
+        return $movimientos;
+
+    $resultado = [];
+
+    foreach($movimientos as $m){
+
+        if(
+            isset($m["almacen"])
+            &&
+            intval($m["almacen"]) == almacenUsuario()
+        ){
+
+            $resultado[] = $m;
+
+        }
+
+    }
+
+    return $resultado;
 
 }
 
@@ -925,13 +1574,13 @@ if(isset($_POST["guardar_salida"])){
 
 if(isset($_GET["borrar_movimiento"])){
 
-    if(esAdministrador()){
+    if(puedeEditar()){
 
-        eliminarMovimiento(
-            intval($_GET["borrar_movimiento"])
-        );
+    eliminarMovimiento(
+        intval($_GET["borrar_movimiento"])
+    );
 
-    }
+}
 
     header("Location:?accion=historial");
 
@@ -943,11 +1592,13 @@ if(isset($_GET["borrar_movimiento"])){
  HTML
 **********************************************************************/
 ?>
+
 <?php
 
 if(!estaLogueado()){
 
 ?>
+
 <!doctype html>
 
 <html lang="es">
@@ -1015,43 +1666,43 @@ border-radius:15px;
 
 <div class="login-container">
 
-    <div class="card shadow">
-        <div class="card-body">
+<div class="card shadow">
+    <div class="card-body">
 
-            <h3 class="mb-4 text-center">
-                Gestión de Almacén
-            </h3>
+        <h3 class="mb-4 text-center">
+            Gestión de Almacén
+        </h3>
 
-            <?php
-            if(isset($errorLogin))
-                echo "<div class='alert alert-danger'>$errorLogin</div>";
-            ?>
+        <?php
+        if(isset($errorLogin))
+            echo "<div class='alert alert-danger'>$errorLogin</div>";
+        ?>
 
-            <form method="post">
+        <form method="post">
 
-                <div class="mb-3">
-                    <label>Usuario</label>
-                    <input name="usuario" class="form-control" required>
-                </div>
+            <div class="mb-3">
+                <label>Usuario</label>
+                <input name="usuario" class="form-control" required>
+            </div>
 
-                <div class="mb-3">
-                    <label>Contraseña</label>
-                    <input type="password" name="password" class="form-control" required>
-                </div>
+            <div class="mb-3">
+                <label>Contraseña</label>
+                <input type="password" name="password" class="form-control" required>
+            </div>
 
-                <button name="login" class="btn btn-primary w-100">
-                    Entrar
-                </button>
+            <button name="login" class="btn btn-primary w-100">
+                Entrar
+            </button>
 
-            </form>
+        </form>
 
-        </div>
     </div>
+</div>
 
-    <div class="cookies-box">
-        Esta web utiliza únicamente cookies técnicas necesarias para el inicio de sesión.
-        No se emplean cookies de análisis, publicidad ni de terceros.
-    </div>
+<div class="cookies-box">
+    Esta web utiliza únicamente cookies técnicas necesarias para el inicio de sesión.
+    No se emplean cookies de análisis, publicidad ni de terceros.
+</div>
 
 </div>
 
@@ -1066,7 +1717,9 @@ exit;
 }
 
 ?>
+
 <!doctype html>
+
 <html lang="es">
 
 <head>
@@ -1188,7 +1841,7 @@ font-weight:bold;
 </small>
 
 </div>
-  
+
 <a href="?">
 <i class="bi bi-speedometer2"></i>
  Dashboard
@@ -1224,7 +1877,19 @@ font-weight:bold;
     Proveedores
 </a>
 
-  <?php if(esAdministrador()){ ?>
+  <?php if(esSuperAdmin()){ ?>
+
+<a href="?accion=almacenes">
+
+<i class="bi bi-building"></i>
+
+Almacenes
+
+</a>
+
+<?php } ?>
+
+<?php if(puedeGestionUsuarios()){ ?>
 
 <a href="?accion=usuarios">
 
@@ -1235,19 +1900,18 @@ Usuarios
 </a>
 
 <?php } ?>
-  
+
 <hr class="text-secondary">
 
   <a href="?accion=perfil">
     <i class="bi bi-person-gear"></i>
     Mi perfil
 </a>
-  
+
 <a href="?accion=logout">
     <i class="bi bi-box-arrow-right"></i>
     Cerrar sesión
 </a>
-
 
 <div class="version-app">
 
@@ -1255,11 +1919,70 @@ Usuarios
 
 </div>
 
-
 </div>
 <div class="main">
 
 <?php
+
+if(isset($_POST["crear_almacen"])){
+
+    if(esSuperAdmin()){
+
+        crearAlmacen(
+
+            $_POST["nombre"],
+
+            $_POST["direccion"]
+
+        );
+
+    }
+
+    header("Location:?accion=almacenes");
+
+    exit;
+
+}
+
+if(isset($_POST["editar_almacen"])){
+
+    if(esSuperAdmin()){
+
+        editarAlmacen(
+
+            intval($_POST["id"]),
+
+            $_POST["nombre"],
+
+            $_POST["direccion"]
+
+        );
+
+    }
+
+    header("Location:?accion=almacenes");
+
+    exit;
+
+}
+
+if(isset($_GET["borrar_almacen"])){
+
+    if(esSuperAdmin()){
+
+        eliminarAlmacen(
+
+            intval($_GET["borrar_almacen"])
+
+        );
+
+    }
+
+    header("Location:?accion=almacenes");
+
+    exit;
+
+}
 
 switch($accion){
 
@@ -1269,9 +1992,9 @@ switch($accion){
 
 default:
 
-$productos=leerJSON("productos");
+$productos=productosUsuario();
 
-$movimientos=leerJSON("movimientos");
+$movimientos = movimientosUsuario();
 
 $totalProductos = count($productos);
 
@@ -1287,36 +2010,42 @@ $stockCorrecto = [];
 
 foreach($productos as $p){
 
-    $stock = $p["stock"] ?? 0;
-    $min = $p["stock_minimo"] ?? 0;
+    $datos = datosStockProductoAlmacen(
+        $p["id"],
+        almacenUsuario()
+    );
+
+    $stock = $datos["stock"];
+    $min   = $datos["stock_minimo"];
 
     $totalStock += $stock;
 
-    if($stock <= 0){
+    if($stock<=0){
 
-        $sinStock++;
+        $p["stock"] = $stock;
+        $p["stock_minimo"] = $min;
+
         $stockCritico[] = $p;
 
+        $sinStock++;
+
     }
-    elseif($stock <= $min){
+    elseif($stock<=$min){
+
+        $p["stock"] = $stock;
+        $p["stock_minimo"] = $min;
 
         $stockBajo[] = $p;
 
     }
     else{
 
+        $p["stock"] = $stock;
+        $p["stock_minimo"] = $min;
+
         $stockCorrecto[] = $p;
 
     }
-
-}
-
-foreach($productos as $p){
-
-    $totalStock+=$p["stock"] ?? 0;
-
-    if(($p["stock"] ?? 0)==0)
-        $sinStock++;
 
 }
 
@@ -1547,7 +2276,7 @@ if(count($stockCorrecto)==0){
 </div>
 
 </div>
-  
+
 <hr>
 
 <h4>
@@ -1603,7 +2332,7 @@ echo "</tr>";
 </tbody>
 
 </table>
-  
+
 <?php
 
 break;
@@ -1614,12 +2343,14 @@ break;
 
 case "productos":
 
-$productos = leerJSON("productos");
+$productos = productosUsuario();
 ?>
 
 <div class="d-flex justify-content-between mb-3">
 
 <h2>Productos</h2>
+
+<?php if(puedeEditar()){ ?>
 
 <button
 class="btn btn-primary"
@@ -1631,6 +2362,8 @@ data-bs-target="#nuevoProducto">
 Nuevo producto
 
 </button>
+
+<?php } ?>
 
 </div>
 
@@ -1659,7 +2392,7 @@ class="table table-striped table-hover bg-white shadow">
 
 <th>Ubicación</th>
 
-<?php if(esAdministrador()){ ?>
+<?php if(puedeEditar()){ ?>
 
 <th>Acciones</th>
 
@@ -1669,66 +2402,139 @@ class="table table-striped table-hover bg-white shadow">
 
 </thead>
 
+
 <tbody>
 
-<?php
+<?php foreach($productos as $p){
 
-foreach($productos as $p){
 
-$color="";
+    $datosStock = datosStockProductoAlmacen(
+        $p["id"],
+        almacenUsuario()
+    );
 
-if($p["stock"]<=0)
-    $color="table-danger";
-elseif($p["stock"]<=$p["stock_minimo"])
-    $color="table-warning";
 
-echo "<tr class='$color'>";
+    $stock = $datosStock["stock"];
+    $stockMinimo = $datosStock["stock_minimo"];
+    $ubicacion = $datosStock["ubicacion"];
 
-echo "<td>".$p["codigo"]."</td>";
 
-echo "<td>".$p["nombre"]."</td>";
+    $color="";
 
-$nombreCategoria = "Sin categoría";
 
-foreach(leerJSON("categorias") as $c){
+    if($stock<=0){
 
-    if($c["id"] == $p["categoria"]){
+        $color="table-danger";
 
-        $nombreCategoria = $c["nombre"];
-        break;
+    }
+    elseif($stock<=$stockMinimo){
+
+        $color="table-warning";
 
     }
 
-}
 
-echo "<td>".htmlspecialchars($nombreCategoria)."</td>";
-echo "<td>".$p["stock"]."</td>";
+    $nombreCategoria="Sin categoría";
 
-echo "<td>".$p["stock_minimo"]."</td>";
 
-echo "<td>".$p["ubicacion"]."</td>";
+    foreach(leerJSON("categorias") as $c){
 
-if(esAdministrador()){
+        if($c["id"]==$p["categoria"]){
 
-    echo "<td>";
+            $nombreCategoria=$c["nombre"];
+            break;
 
-    echo "<button class='btn btn-warning btn-sm'
-            data-bs-toggle='modal'
-            data-bs-target='#editar".$p["id"]."'>";
+        }
 
-    echo "<i class='bi bi-pencil'></i>";
-
-    echo "</button>";
-
-    echo "</td>";
-
-}
-
-echo "</tr>";
+    }
 
 ?>
 
-<?php if(esAdministrador()){ ?>
+
+<tr class="<?=$color?>">
+
+
+<td>
+<?=htmlspecialchars($p["codigo"])?>
+</td>
+
+
+<td>
+<?=htmlspecialchars($p["nombre"])?>
+</td>
+
+
+<td>
+<?=htmlspecialchars($nombreCategoria)?>
+</td>
+
+
+<td>
+<?=$stock?>
+</td>
+
+
+<td>
+<?=$stockMinimo?>
+</td>
+
+
+<td>
+<?=htmlspecialchars($ubicacion)?>
+</td>
+
+
+
+<?php if(puedeEditar()){ ?>
+
+<td>
+
+<button
+class="btn btn-warning btn-sm"
+data-bs-toggle="modal"
+data-bs-target="#editar<?=$p["id"]?>">
+
+<i class="bi bi-pencil"></i>
+
+</button>
+
+</td>
+
+<?php } ?>
+
+
+</tr>
+
+
+
+<?php } ?>
+
+
+</tbody>
+
+</table>
+
+
+
+<?php if(puedeEditar()){ ?>
+
+
+<?php foreach($productos as $p){
+
+
+$datosStock = datosStockProductoAlmacen(
+    $p["id"],
+    almacenUsuario()
+);
+
+
+$stock = $datosStock["stock"];
+$stockMinimo = $datosStock["stock_minimo"];
+$ubicacion = $datosStock["ubicacion"];
+
+
+?>
+
 
 <div class="modal fade" id="editar<?=$p["id"]?>">
 
@@ -1736,13 +2542,22 @@ echo "</tr>";
 
 <div class="modal-content">
 
+
 <form method="post">
 
-<input type="hidden" name="id" value="<?=$p["id"]?>">
+
+<input 
+type="hidden"
+name="id"
+value="<?=$p["id"]?>">
+
 
 <div class="modal-header">
 
-<h5>Editar producto</h5>
+<h5>
+Editar producto
+</h5>
+
 
 <button
 type="button"
@@ -1750,15 +2565,23 @@ class="btn-close"
 data-bs-dismiss="modal">
 </button>
 
+
 </div>
+
+
 
 <div class="modal-body">
 
+
 <div class="row">
+
+
 
 <div class="col-md-6 mb-3">
 
-<label>Nombre</label>
+<label>
+Nombre
+</label>
 
 <input
 name="nombre"
@@ -1768,15 +2591,22 @@ required>
 
 </div>
 
+
+
 <div class="col-md-6 mb-3">
 
-<label>Categoría</label>
+<label>
+Categoría
+</label>
+
 
 <select
 name="categoria"
 class="form-select">
 
+
 <?php foreach(leerJSON("categorias") as $c){ ?>
+
 
 <option
 value="<?=$c["id"]?>"
@@ -1786,37 +2616,60 @@ value="<?=$c["id"]?>"
 
 </option>
 
+
 <?php } ?>
+
 
 </select>
 
+
 </div>
+
+
+
 
 <div class="col-md-6 mb-3">
 
-<label>Proveedor</label>
+<label>
+Proveedor
+</label>
+
 
 <input
 name="proveedor"
 class="form-control"
-value="<?=$p["proveedor"]?>">
+value="<?=htmlspecialchars($p["proveedor"])?>">
 
 </div>
 
+
+
+
+
 <div class="col-md-6 mb-3">
 
-<label>Ubicación</label>
+<label>
+Ubicación
+</label>
+
 
 <input
 name="ubicacion"
 class="form-control"
-value="<?=htmlspecialchars($p["ubicacion"])?>">
+value="<?=htmlspecialchars($ubicacion)?>">
 
 </div>
 
-<div class="col-md-3">
 
-<label>Compra</label>
+
+
+
+<div class="col-md-3 mb-3">
+
+<label>
+Compra
+</label>
+
 
 <input
 type="number"
@@ -1827,9 +2680,16 @@ value="<?=$p["precio_compra"]?>">
 
 </div>
 
-<div class="col-md-3">
 
-<label>Venta</label>
+
+
+
+<div class="col-md-3 mb-3">
+
+<label>
+Venta
+</label>
+
 
 <input
 type="number"
@@ -1840,35 +2700,57 @@ value="<?=$p["precio_venta"]?>">
 
 </div>
 
-<div class="col-md-3">
 
-<label>Stock</label>
+
+
+
+<div class="col-md-3 mb-3">
+
+<label>
+Stock
+</label>
+
 
 <input
 type="number"
 name="stock"
 class="form-control"
-value="<?=$p["stock"]?>">
+value="<?=$stock?>"
+min="0">
 
 </div>
 
-<div class="col-md-3">
 
-<label>Stock mínimo</label>
+
+
+
+<div class="col-md-3 mb-3">
+
+<label>
+Stock mínimo
+</label>
+
 
 <input
 type="number"
 name="stock_minimo"
 class="form-control"
-value="<?=$p["stock_minimo"]?>">
+value="<?=$stockMinimo?>"
+min="0">
 
 </div>
 
-</div>
+
 
 </div>
+
+
+</div>
+
+
 
 <div class="modal-footer">
+
 
 <button
 name="editar_producto"
@@ -1878,27 +2760,24 @@ Guardar cambios
 
 </button>
 
+
 </div>
+
 
 </form>
 
-</div>
 
 </div>
 
 </div>
+
+</div>
+
 
 <?php } ?>
 
-<?php
 
-}
-
-?>
-
-</tbody>
-
-</table>
+<?php } ?>
 
 <!-- Modal -->
 
@@ -1917,8 +2796,7 @@ Guardar cambios
 <button
 type="button"
 class="btn-close"
-data-bs-dismiss="modal">
-</button>
+data-bs-dismiss="modal"></button>
 
 </div>
 
@@ -2092,9 +2970,9 @@ break;
 
 case "entradas":
 
-$productos=leerJSON("productos");
+$productos=productosUsuario();
 
-$movimientos=leerJSON("movimientos");
+$movimientos = movimientosUsuario();
 
 ?>
 
@@ -2103,6 +2981,8 @@ $movimientos=leerJSON("movimientos");
 Entradas de mercancía
 
 </h2>
+
+<?php if(puedeGestionAlmacen()){ ?>
 
 <form method="post" class="card shadow p-4 mb-4">
 
@@ -2177,6 +3057,7 @@ Registrar entrada
 </div>
 
 </form>
+<?php } ?>
 
 <h4>
 
@@ -2241,9 +3122,9 @@ break;
 
 case "salidas":
 
-$productos = leerJSON("productos");
+$productos = productosUsuario();
 
-$movimientos = leerJSON("movimientos");
+$movimientos = movimientosUsuario();
 
 ?>
 
@@ -2266,6 +3147,8 @@ if(isset($_GET["error"])){
 }
 
 ?>
+
+<?php if(puedeGestionAlmacen()){ ?>
 
 <form method="post" class="card shadow p-4 mb-4">
 
@@ -2294,8 +3177,11 @@ foreach($productos as $p){
 
     echo $p["nombre"];
 
-    echo " (Stock: ".$p["stock"].")";
-
+echo " (Stock: ".stockProductoAlmacen(
+    $p["id"],
+    almacenUsuario()
+).")";
+  
     echo "</option>";
 
 }
@@ -2346,6 +3232,7 @@ Registrar salida
 </div>
 
 </form>
+<?php } ?>
 
 <h4>
 
@@ -2410,7 +3297,7 @@ break;
 
 case "historial":
 
-$movimientos = array_reverse(leerJSON("movimientos"));
+$movimientos = array_reverse(movimientosUsuario());
 
 $tipo = $_GET["tipo"] ?? "";
 
@@ -2514,7 +3401,7 @@ Limpiar
 
 <th>Observaciones</th>
 
-<?php if(esAdministrador()){ ?>
+<?php if(puedeEditar()){ ?>
 
 <th>Acciones</th>
 
@@ -2550,52 +3437,49 @@ foreach($movimientos as $m){
 
     ?>
 
-    <tr>
+<tr>
 
-    <td><?=htmlspecialchars($m["fecha"])?></td>
-
-    <td>
-
-        <?php if($m["tipo"]=="Entrada"){ ?>
-
-            <span class="badge bg-success">
-
-            Entrada
-
-            </span>
-
-        <?php }else{ ?>
-
-            <span class="badge bg-danger">
-
-            Salida
-
-            </span>
-
-        <?php } ?>
-
-    </td>
-
-    <td><?=htmlspecialchars($m["producto"])?></td>
-
-    <td class="<?=$color?> fw-bold">
-
-        <?=$signo?><?=$m["cantidad"]?>
-
-    </td>
-
-    <td><?=htmlspecialchars($m["usuario"])?></td>
-
-    <td><?=htmlspecialchars($m["observaciones"])?></td>
-
-      <?php if(esAdministrador()){ ?>
+<td><?=htmlspecialchars($m["fecha"])?></td>
 
 <td>
 
-<a
-href="?accion=historial&borrar_movimiento=<?=$m["id"]?>"
-class="btn btn-danger btn-sm"
-onclick="return confirm('¿Eliminar este movimiento?')">
+    <?php if($m["tipo"]=="Entrada"){ ?>
+
+        <span class="badge bg-success">
+
+        Entrada
+
+        </span>
+
+    <?php }else{ ?>
+
+        <span class="badge bg-danger">
+
+        Salida
+
+        </span>
+
+    <?php } ?>
+
+</td>
+
+<td><?=htmlspecialchars($m["producto"])?></td>
+
+<td class="<?=$color?> fw-bold">
+
+    <?=$signo?><?=$m["cantidad"]?>
+
+</td>
+
+<td><?=htmlspecialchars($m["usuario"])?></td>
+
+<td><?=htmlspecialchars($m["observaciones"])?></td>
+
+  <?php if(puedeEditar()){ ?>
+
+<td>
+
+<a href="?accion=historial&borrar_movimiento=<?=$m["id"]?>"class="btn btn-danger btn-sm"onclick="return confirm('¿Eliminar este movimiento?')">
 
 <i class="bi bi-trash"></i>
 
@@ -2604,10 +3488,10 @@ onclick="return confirm('¿Eliminar este movimiento?')">
 </td>
 
 <?php } ?>
-      
-    </tr>
 
-    <?php
+</tr>
+
+<?php
 
 }
 
@@ -2633,6 +3517,8 @@ $categorias = leerJSON("categorias");
 
 <h2>Categorías</h2>
 
+<?php if(puedeEditar()){ ?>
+
 <button
 class="btn btn-primary"
 data-bs-toggle="modal"
@@ -2643,6 +3529,7 @@ data-bs-target="#nuevaCategoria">
 Nueva categoría
 
 </button>
+<?php } ?>
 
 </div>
 
@@ -2678,10 +3565,7 @@ foreach($categorias as $c){
 
 <td>
 
-<a
-href="?accion=categorias&borrar_categoria=<?=$c["id"]?>"
-class="btn btn-danger btn-sm"
-onclick="return confirm('¿Eliminar categoría?')">
+<a href="?accion=categorias&borrar_categoria=<?=$c["id"]?>"class="btn btn-danger btn-sm"onclick="return confirm('¿Eliminar categoría?')">
 
 <i class="bi bi-trash"></i>
 
@@ -2769,6 +3653,8 @@ $proveedores = leerJSON("proveedores");
 
 <h2>Proveedores</h2>
 
+<?php if(puedeEditar()){ ?>
+
 <button
 class="btn btn-primary"
 data-bs-toggle="modal"
@@ -2779,6 +3665,7 @@ data-bs-target="#nuevoProveedor">
 Nuevo proveedor
 
 </button>
+<?php } ?>
 
 </div>
 
@@ -2818,10 +3705,7 @@ Nuevo proveedor
 
 <td>
 
-<a
-href="?accion=proveedores&borrar_proveedor=<?=$p["id"]?>"
-class="btn btn-danger btn-sm"
-onclick="return confirm('¿Eliminar proveedor?')">
+<a href="?accion=proveedores&borrar_proveedor=<?=$p["id"]?>"class="btn btn-danger btn-sm"onclick="return confirm('¿Eliminar proveedor?')">
 
 <i class="bi bi-trash"></i>
 
@@ -2852,8 +3736,7 @@ onclick="return confirm('¿Eliminar proveedor?')">
 <button
 type="button"
 class="btn-close"
-data-bs-dismiss="modal">
-</button>
+data-bs-dismiss="modal"></button>
 
 </div>
 
@@ -2989,10 +3872,7 @@ disabled>
 
 <form method="post">
 
-<input
-type="hidden"
-name="id"
-value="<?=$u["id"]?>">
+<input type="hidden"name="id"value="<?=$u["id"]?>">
 
 <div class="mb-3">
 
@@ -3023,10 +3903,214 @@ Guardar contraseña
 <?php
 
 break;
-    
+
+case "almacenes":
+
+if(!esSuperAdmin()){
+
+    echo "<div class='alert alert-danger'>Acceso denegado.</div>";
+
+    break;
+
+}
+
+$almacenes=almacenes();
+
+?>
+
+<div class="d-flex justify-content-between mb-3">
+
+<h2>Almacenes</h2>
+
+<button
+class="btn btn-primary"
+data-bs-toggle="modal"
+data-bs-target="#nuevoAlmacen">
+
+<i class="bi bi-plus-circle"></i>
+
+Nuevo almacén
+
+</button>
+
+</div>
+
+<table class="table table-striped bg-white shadow">
+
+<thead>
+
+<tr>
+
+<th>Nombre</th>
+
+<th>Dirección</th>
+
+<th width="170">Acciones</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+<?php foreach($almacenes as $a){ ?>
+
+<tr>
+
+<td><?=htmlspecialchars($a["nombre"])?></td>
+
+<td><?=htmlspecialchars($a["direccion"])?></td>
+
+<td>
+
+<button class="btn btn-warning btn-sm"data-bs-toggle="modal"data-bs-target="#editar<?=$a["id"]?>">
+
+<i class="bi bi-pencil"></i>
+
+</button>
+
+<?php if($a["id"]!=1){ ?>
+
+<a href="?accion=almacenes&borrar_almacen=<?=$a["id"]?>"class="btn btn-danger btn-sm"onclick="return confirm('¿Eliminar almacén?')">
+
+<i class="bi bi-trash"></i>
+
+</a>
+
+<?php } ?>
+
+</td>
+
+</tr>
+
+<div class="modal fade" id="editar<?=$a["id"]?>">
+
+<div class="modal-dialog">
+
+<div class="modal-content">
+
+<form method="post">
+
+<input type="hidden"name="id"value="<?=$a["id"]?>">
+
+<div class="modal-header">
+
+<h5>Editar almacén</h5>
+
+<button
+type="button"
+class="btn-close"
+data-bs-dismiss="modal">
+
+</button>
+
+</div>
+
+<div class="modal-body">
+
+<label>Nombre</label>
+
+<input name="nombre"class="form-control mb-3"value="<?=htmlspecialchars($a["nombre"])?>"required>
+
+<label>Dirección</label>
+
+<textarea
+name="direccion"
+class="form-control"><?=htmlspecialchars($a["direccion"])?></textarea>
+
+</div>
+
+<div class="modal-footer">
+
+<button
+class="btn btn-success"
+name="editar_almacen">
+
+Guardar
+
+</button>
+
+</div>
+
+</form>
+
+</div>
+
+</div>
+
+</div>
+
+<?php } ?>
+
+</tbody>
+
+</table>
+
+<div class="modal fade" id="nuevoAlmacen">
+
+<div class="modal-dialog">
+
+<div class="modal-content">
+
+<form method="post">
+
+<div class="modal-header">
+
+<h5>Nuevo almacén</h5>
+
+<button
+type="button"
+class="btn-close"
+data-bs-dismiss="modal">
+
+</button>
+
+</div>
+
+<div class="modal-body">
+
+<label>Nombre</label>
+
+<input
+name="nombre"
+class="form-control mb-3"
+required>
+
+<label>Dirección</label>
+
+<textarea
+name="direccion"
+class="form-control"></textarea>
+
+</div>
+
+<div class="modal-footer">
+
+<button
+class="btn btn-success"
+name="crear_almacen">
+
+Crear almacén
+
+</button>
+
+</div>
+
+</form>
+
+</div>
+
+</div>
+
+</div>
+
+<?php
+
+break;
+
 case "usuarios":
 
-if(!esAdministrador()){
+if(!puedeGestionUsuarios()){
 
     echo "<div class='alert alert-danger'>
     No tienes permisos para acceder.
@@ -3037,7 +4121,7 @@ if(!esAdministrador()){
 }
 
 
-$usuarios=leerJSON("usuarios");
+$usuarios = usuarios();
 
 ?>
 
@@ -3045,7 +4129,7 @@ $usuarios=leerJSON("usuarios");
 Usuarios
 </h2>
 
-  <button
+<button
 class="btn btn-primary mb-3"
 data-bs-toggle="modal"
 data-bs-target="#nuevoUsuario">
@@ -3068,16 +4152,21 @@ Nuevo usuario
 
 <th>Rol</th>
 
+<th>Almacén</th>
+
 <th>Acciones</th>
 
 </tr>
 
 </thead>
 
-
 <tbody>
 
-<?php foreach($usuarios as $u){ ?>
+<?php
+foreach($usuarios as $u){
+
+    $editable = !(esAdmin() && $u["rol"]=="superadmin");
+?>
 
 <tr>
 
@@ -3095,27 +4184,47 @@ Nuevo usuario
 
 <td>
 
+<?php
+
+$nombreAlmacen="-";
+
+foreach(leerJSON("almacenes") as $a){
+
+    if($a["id"]==$u["almacen"]){
+
+        $nombreAlmacen=$a["nombre"];
+
+        break;
+
+    }
+
+}
+
+echo htmlspecialchars($nombreAlmacen);
+
+?>
+
+</td>
+
+<td>
+
 <button
-class="btn btn-warning btn-sm"
-data-bs-toggle="modal"
-data-bs-target="#password<?=$u["id"]?>">
+    class="btn btn-warning btn-sm"
+    data-bs-toggle="modal"
+    data-bs-target="#editar<?=$u["id"]?>">
+<i class="bi bi-pencil"></i>
 
-<i class="bi bi-key"></i>
-
-Cambiar contraseña
+Editar
 
 </button>
 
-
-<a 
-href="?borrar_usuario=<?=$u["id"]?>&accion=usuarios"
-class="btn btn-danger btn-sm"
-onclick="return confirm('¿Eliminar usuario?')">
-
+<a
+    href="?borrar_usuario=<?=$u["id"]?>&accion=usuarios"
+    class="btn btn-danger btn-sm"
+    onclick="return confirm('¿Eliminar usuario?')">
 <i class="bi bi-trash"></i>
 
 </a>
-
 
 </td>
 
@@ -3123,77 +4232,150 @@ onclick="return confirm('¿Eliminar usuario?')">
 
   <!-- MODAL CAMBIAR PASSWORD -->
 
-<div class="modal fade" id="password<?=$u["id"]?>">
+<div class="modal fade" id="editar<?=$u["id"]?>">
 
 <div class="modal-dialog">
 
 <div class="modal-content">
 
-
 <form method="post">
 
+<input type="hidden" name="id" value="<?=$u["id"]?>">
 
 <div class="modal-header">
 
-<h5>
-
-Cambiar contraseña de <?=$u["usuario"]?>
-
-</h5>
-
+<h5>Editar usuario</h5>
 
 <button
 type="button"
 class="btn-close"
-data-bs-dismiss="modal">
+data-bs-dismiss="modal"></button>
 
-</button>
+</div>
 
+<div class="modal-body">
+
+<div class="mb-3">
+
+<label>Usuario</label>
+
+<input name="usuario"class="form-control"value="<?=htmlspecialchars($u["usuario"])?>"required>
+
+</div>
+
+<div class="mb-3">
+
+<label>Nombre</label>
+
+<input name="nombre"class="form-control"value="<?=htmlspecialchars($u["nombre"])?>"required>
+
+</div>
+
+<div class="mb-3">
+
+<label>Rol</label>
+
+<select name="rol" class="form-select">
+
+<?php if(esSuperAdmin()){ ?>
+<option value="superadmin" <?=$u["rol"]=="superadmin"?"selected":""?>>
+Superadministrador
+</option>
+<?php } ?>
+
+<option value="admin" <?=$u["rol"]=="admin"?"selected":""?>>
+Administrador
+</option>
+
+<option value="operario" <?=$u["rol"]=="operario"?"selected":""?>>
+Operario
+</option>
+
+<option value="lector" <?=$u["rol"]=="lector"?"selected":""?>>
+Lector
+</option>
+
+</select>
+
+</div>
+
+<?php if(esSuperAdmin()){ ?>
+
+<div class="mb-3">
+
+    <label>Almacén</label>
+
+    <select name="almacen" class="form-select">
+
+        <?php foreach(leerJSON("almacenes") as $a){ ?>
+
+            <option
+                value="<?=$a["id"]?>"
+                <?=$u["almacen"]==$a["id"]?"selected":""?>>
+
+                <?=htmlspecialchars($a["nombre"])?>
+
+            </option>
+
+        <?php } ?>
+
+    </select>
+
+</div>
+
+<?php } ?>
+
+<div class="mb-3 form-check">
+
+<input 
+class="form-check-input"
+type="checkbox"
+name="activo"
+<?=$u["activo"] ? "checked" : ""?>
+>
+
+<label class="form-check-label">
+
+Usuario activo
+
+</label>
 
 </div>
 
 
-<div class="modal-body">
+<div class="mb-3">
 
-
-<input
-type="hidden"
-name="id"
-value="<?=$u["id"]?>">
-
-
-<label>
-Nueva contraseña
-</label>
-
+<label>Nueva contraseña</label>
 
 <input
 type="password"
 name="password"
-class="form-control"
-required>
+class="form-control">
 
+<small class="text-muted">
+
+Déjalo vacío para conservar la actual.
+
+</small>
+
+</div>
 
 </div>
 
 
 <div class="modal-footer">
 
-
 <button
 class="btn btn-success"
-name="cambiar_password">
+name="editar_usuario">
 
-Guardar contraseña
+Guardar cambios
 
 </button>
 
-
 </div>
 
-
 </form>
-
 
 </div>
 
@@ -3207,19 +4389,15 @@ Guardar contraseña
 
 </table>
 
-
   <!-- MODAL NUEVO USUARIO -->
 
 <div class="modal fade" id="nuevoUsuario">
 
 <div class="modal-dialog modal-lg">
 
-
 <div class="modal-content">
 
-
 <form method="post">
-
 
 <div class="modal-header">
 
@@ -3229,7 +4407,6 @@ Nuevo usuario
 
 </h5>
 
-
 <button
 type="button"
 class="btn-close"
@@ -3237,60 +4414,49 @@ data-bs-dismiss="modal">
 
 </button>
 
-
 </div>
 
 
 
 <div class="modal-body">
 
-
 <div class="row">
 
-
 <div class="col-md-6 mb-3">
-
 
 <label>
 Usuario
 </label>
-
 
 <input
 name="usuario"
 class="form-control"
 required>
 
-
 </div>
 
 
 
 <div class="col-md-6 mb-3">
 
-
 <label>
 Nombre
 </label>
-
 
 <input
 name="nombre"
 class="form-control"
 required>
 
-
 </div>
 
 
 
 <div class="col-md-6 mb-3">
 
-
 <label>
 Contraseña inicial
 </label>
-
 
 <input
 type="password"
@@ -3298,54 +4464,62 @@ name="password"
 class="form-control"
 required>
 
-
 </div>
 
 
 
 <div class="col-md-6 mb-3">
 
-
-<label>
-Rol
-</label>
-
+<label>Rol</label>
 
 <select
 name="rol"
 class="form-select">
 
+<?php if(esSuperAdmin()){ ?>
 
-<option>
-Administrador
-</option>
+<option value="superadmin">Superadministrador</option>
+<option value="admin">Administrador</option>
+<?php } ?>
 
-
-<option>
-Operario
-</option>
-
-
-<option>
-Lectura
-</option>
-
+<option value="operario">Operario</option>
+<option value="lector">Lector</option>
 
 </select>
 
+</div>
+
+<?php if(esSuperAdmin()){ ?>
+
+<div class="col-md-6 mb-3" id="bloqueAlmacen">
+
+    <label>Almacén</label>
+
+    <select
+        name="almacen"
+        class="form-select">
+
+        <?php foreach(leerJSON("almacenes") as $a){ ?>
+
+        <option value="<?=$a["id"]?>">
+            <?=htmlspecialchars($a["nombre"])?>
+        </option>
+
+        <?php } ?>
+
+    </select>
 
 </div>
 
+<?php } ?>
 
 </div>
-
 
 </div>
 
 
 
 <div class="modal-footer">
-
 
 <button
 class="btn btn-success"
@@ -3355,21 +4529,44 @@ Crear usuario
 
 </button>
 
-
 </div>
-
 
 </form>
 
+</div>
 
 </div>
 
-
 </div>
 
+<script>
 
-</div>
-  
+document.addEventListener("DOMContentLoaded", function(){
+
+    document.querySelectorAll("select[name='rol']").forEach(function(select){
+
+        function actualizar(){
+
+            let bloque = select.closest("form").querySelector("#bloqueAlmacen");
+
+            if(!bloque) return;
+
+            bloque.style.display =
+                (select.value=="superadmin")
+                ? "none"
+                : "block";
+        }
+
+        select.addEventListener("change", actualizar);
+
+        actualizar();
+
+    });
+
+});
+
+</script>
+
 <?php
 
 break;
