@@ -509,6 +509,9 @@ function actualizarProducto($datos){
             $p["proveedor"] = intval($datos["proveedor"]);
             $p["precio_compra"] = floatval($datos["precio_compra"]);
             $p["precio_venta"] = floatval($datos["precio_venta"]);
+          if(esSuperAdmin()){
+            $p["almacen"] = intval($datos["almacen"]);
+          }
 
             break;
 
@@ -529,7 +532,12 @@ foreach($stock as &$s){
     if(
         intval($s["producto"]) == intval($datos["id"])
         &&
-        intval($s["almacen"]) == almacenUsuario()
+        intval($s["almacen"]) ==
+        (
+            esSuperAdmin()
+            ? intval($datos["almacen"])
+            : almacenUsuario()
+        )
     ){
 
         $s["stock"] = intval($datos["stock"]);
@@ -554,7 +562,9 @@ if(!$encontrado){
 
         "producto"=>intval($datos["id"]),
 
-        "almacen"=>almacenUsuario(),
+        "almacen" => esSuperAdmin()
+            ? intval($datos["almacen"])
+            : almacenUsuario(),
 
         "stock"=>intval($datos["stock"]),
 
@@ -612,7 +622,7 @@ function puedeEditar(){
 
     return in_array(
         rol(),
-        ["superadmin","admin","operario"]
+        ["superadmin","admin"]
     );
 
 }
@@ -1440,9 +1450,13 @@ if(isset($_POST["guardar_producto"])){
 
     "precio_compra" => floatval($_POST["precio_compra"]),
 
-    "precio_venta" => floatval($_POST["precio_venta"])
+    "precio_venta" => floatval($_POST["precio_venta"]),
 
-    ];
+    "almacen" => esSuperAdmin()
+        ? intval($_POST["almacen"])
+        : almacenUsuario()
+
+];
 
     guardarJSON("productos",$productos);
   
@@ -1454,7 +1468,9 @@ $stock[] = [
 
     "producto" => end($productos)["id"],
 
-    "almacen" => almacenUsuario(),
+    "almacen" => esSuperAdmin()
+    ? intval($_POST["almacen"])
+    : almacenUsuario(),
 
     "stock" => intval($_POST["stock"]),
 
@@ -2392,6 +2408,12 @@ class="table table-striped table-hover bg-white shadow">
 
 <th>Ubicación</th>
 
+<?php if(esSuperAdmin()){ ?>
+
+<th>Almacén</th>
+
+<?php } ?>
+
 <?php if(puedeEditar()){ ?>
 
 <th>Acciones</th>
@@ -2447,6 +2469,18 @@ class="table table-striped table-hover bg-white shadow">
         }
 
     }
+  $nombreAlmacen = "-";
+
+foreach(leerJSON("almacenes") as $a){
+
+    if($a["id"] == ($p["almacen"] ?? 1)){
+
+        $nombreAlmacen = $a["nombre"];
+        break;
+
+    }
+
+}
 
 ?>
 
@@ -2483,7 +2517,13 @@ class="table table-striped table-hover bg-white shadow">
 <?=htmlspecialchars($ubicacion)?>
 </td>
 
+<?php if(esSuperAdmin()){ ?>
 
+<td>
+<?=htmlspecialchars($nombreAlmacen)?>
+</td>
+
+<?php } ?>
 
 <?php if(puedeEditar()){ ?>
 
@@ -2643,7 +2683,29 @@ value="<?=htmlspecialchars($p["proveedor"])?>">
 </div>
 
 
+<?php if(esSuperAdmin()){ ?>
 
+<div class="col-md-6 mb-3">
+
+<label>Almacén</label>
+
+<select
+name="almacen"
+class="form-select">
+
+<?php foreach(leerJSON("almacenes") as $a){ ?>
+
+<option value="<?=$a["id"]?>">
+<?=htmlspecialchars($a["nombre"])?>
+</option>
+
+<?php } ?>
+
+</select>
+
+</div>
+
+<?php } ?>
 
 
 <div class="col-md-6 mb-3">
@@ -2860,6 +2922,30 @@ name="proveedor"
 class="form-control">
 
 </div>
+
+<?php if(esSuperAdmin()){ ?>
+
+<div class="col-md-6 mb-3">
+
+<label>Almacén</label>
+
+<select
+name="almacen"
+class="form-select">
+
+<?php foreach(leerJSON("almacenes") as $a){ ?>
+
+<option value="<?=$a["id"]?>">
+<?=htmlspecialchars($a["nombre"])?>
+</option>
+
+<?php } ?>
+
+</select>
+
+</div>
+
+<?php } ?>
 
 <div class="col-md-6 mb-3">
 
@@ -3565,11 +3651,17 @@ foreach($categorias as $c){
 
 <td>
 
-<a href="?accion=categorias&borrar_categoria=<?=$c["id"]?>"class="btn btn-danger btn-sm"onclick="return confirm('¿Eliminar categoría?')">
+<?php if(puedeEditar()){ ?>
+
+<a href="?accion=categorias&borrar_categoria=<?=$c["id"]?>"
+class="btn btn-danger btn-sm"
+onclick="return confirm('¿Eliminar categoría?')">
 
 <i class="bi bi-trash"></i>
 
 </a>
+
+<?php } ?>
 
 </td>
 
@@ -3705,11 +3797,17 @@ Nuevo proveedor
 
 <td>
 
-<a href="?accion=proveedores&borrar_proveedor=<?=$p["id"]?>"class="btn btn-danger btn-sm"onclick="return confirm('¿Eliminar proveedor?')">
+<?php if(puedeEditar()){ ?>
+
+<a href="?accion=proveedores&borrar_proveedor=<?=$p["id"]?>"
+class="btn btn-danger btn-sm"
+onclick="return confirm('¿Eliminar proveedor?')">
 
 <i class="bi bi-trash"></i>
 
 </a>
+
+<?php } ?>
 
 </td>
 
