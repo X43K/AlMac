@@ -1332,6 +1332,16 @@ if(isset($_POST["editar_usuario"])){
 
     if(puedeGestionUsuarios()){
 
+        if(
+            trim($_POST["password"]) != ""
+            &&
+            $_POST["password"] != $_POST["password2"]
+        ){
+
+            die("Las contraseñas no coinciden.");
+
+        }
+
         editarUsuario($_POST);
 
     }
@@ -1387,20 +1397,36 @@ if(isset($_POST["cambiar_password"])){
 
     }
 
+if(
+    trim($_POST["password"]) != "" &&
+    $_POST["password"] != $_POST["password2"]
+){
 
-    if($puede){
+    die("Las contraseñas no coinciden.");
 
-        cambiarPasswordUsuario(
-            $id,
-            $_POST["password"]
-        );
+}
+if($puede){
 
-    }
+    cambiarPasswordUsuario(
+        $id,
+        $_POST["password"]
+    );
 
+}
+
+
+// Si es el propio usuario cambiando su contraseña
+if($_SESSION["usuario"]["id"]==$id){
+
+    header("Location:?accion=perfil");
+
+}else{
 
     header("Location:?accion=usuarios");
 
-    exit;
+}
+
+exit;
 
 }
 
@@ -3979,8 +4005,30 @@ disabled>
 <input
 type="password"
 name="password"
+id="passwordPerfil"
 class="form-control"
 required>
+
+</div>
+<div class="mb-3">
+
+<label>Confirmar contraseña</label>
+
+<input
+type="password"
+name="password2"
+id="confirmPasswordPerfil"
+class="form-control"
+required>
+
+<div
+id="mensajePasswordPerfil"
+class="form-text text-danger"
+style="display:none;">
+
+Las contraseñas no coinciden.
+
+</div>
 
 </div>
 
@@ -3997,6 +4045,33 @@ Guardar contraseña
 </div>
 
 </div>
+
+<script>
+
+let pass = document.getElementById("passwordPerfil");
+let confirm = document.getElementById("confirmPasswordPerfil");
+let mensaje = document.getElementById("mensajePasswordPerfil");
+
+function comprobarPasswordPerfil(){
+
+    if(pass.value !== confirm.value){
+
+        mensaje.style.display = "block";
+        confirm.setCustomValidity("Las contraseñas no coinciden");
+
+    }else{
+
+        mensaje.style.display = "none";
+        confirm.setCustomValidity("");
+
+    }
+
+}
+
+pass.addEventListener("keyup", comprobarPasswordPerfil);
+confirm.addEventListener("keyup", comprobarPasswordPerfil);
+
+</script>
 
 <?php
 
@@ -4448,13 +4523,33 @@ Usuario activo
 <input
 type="password"
 name="password"
+id="password<?=$u["id"]?>"
 class="form-control">
 
 <small class="text-muted">
-
-Déjalo vacío para conservar la actual.
-
+Déjala vacía si no deseas cambiarla.
 </small>
+
+</div>
+
+<div class="mb-3">
+
+<label>Confirmar contraseña</label>
+
+<input
+type="password"
+name="password2"
+id="confirmPassword<?=$u["id"]?>"
+class="form-control">
+
+<div
+id="mensajePassword<?=$u["id"]?>"
+class="form-text text-danger"
+style="display:none;">
+
+Las contraseñas no coinciden.
+
+</div>
 
 </div>
 
@@ -4660,9 +4755,62 @@ document.addEventListener("DOMContentLoaded", function(){
         actualizar();
 
     });
+      document.querySelectorAll("form").forEach(function(form){
+
+        let pass = form.querySelector("input[name='password']");
+
+        if(!pass) return;
+
+        let confirm = form.querySelector("input[id^='confirmPassword']");
+
+        if(!confirm) return;
+
+        let mensaje = form.querySelector("div[id^='mensajePassword']");
+
+        function comprobar(){
+
+            if(pass.value===""){
+
+                mensaje.style.display="none";
+                confirm.setCustomValidity("");
+                return;
+
+            }
+
+            if(pass.value!==confirm.value){
+
+                mensaje.style.display="block";
+                confirm.setCustomValidity("Las contraseñas no coinciden");
+
+            }else{
+
+                mensaje.style.display="none";
+                confirm.setCustomValidity("");
+
+            }
+
+        }
+
+        pass.addEventListener("keyup",comprobar);
+        confirm.addEventListener("keyup",comprobar);
+
+    });
+document.querySelectorAll(".mostrarPasswordUsuario").forEach(function(check){
+
+    check.addEventListener("change", function(){
+
+        let id = this.dataset.id;
+
+        document.getElementById("password"+id).type =
+            this.checked ? "text" : "password";
+
+        document.getElementById("confirmPassword"+id).type =
+            this.checked ? "text" : "password";
+
+    });
 
 });
-
+});
 </script>
 
 <?php
