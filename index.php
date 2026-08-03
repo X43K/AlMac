@@ -1649,7 +1649,7 @@ if(!estaLogueado()){
 
 <meta charset="utf-8">
 
-<title>Login</title>
+<title>AlMac</title>
 
 <link rel="icon" href="images/logo.webp">
 <link rel="manifest" href="manifest.json">
@@ -1770,7 +1770,7 @@ exit;
 
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
-<title>Gestión de Almacén</title>
+<title>AlMac</title>
 
 <link rel="icon" href="images/logo.webp">
 <link rel="manifest" href="manifest.json">
