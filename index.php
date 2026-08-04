@@ -1891,7 +1891,10 @@ background:#f5f5f5;
 }
 
 .sidebar{
-    width:240px;
+    width:max-content;
+    min-width:150px;
+    max-width:230px;
+
     height:100vh;
     background:#1e293b;
     position:fixed;
@@ -1911,12 +1914,11 @@ padding:20px;
 }
 
 .sidebar a{
-
-display:block;
-padding:12px 20px;
-color:#ddd;
-text-decoration:none;
-
+    display:block;
+    padding:8px 10px;
+    color:#ddd;
+    text-decoration:none;
+    white-space:nowrap;
 }
 
 .sidebar a:hover{
@@ -1939,10 +1941,7 @@ color:white;
 }
 
 .main{
-
-margin-left:240px;
-padding:25px;
-
+    padding:25px;
 }
 
 .card{
@@ -1959,6 +1958,100 @@ font-weight:bold;
 
 }
 
+/* ==============================
+   ADAPTACIÓN PARA MÓVILES
+==============================*/
+
+@media (max-width:992px){
+
+    body{
+        font-size:14px;
+    }
+
+    h2{
+        font-size:1.4rem;
+    }
+
+    h3{
+        font-size:1.2rem;
+    }
+
+    h4{
+        font-size:1.1rem;
+    }
+
+    h5{
+        font-size:1rem;
+    }
+
+    .sidebar{
+
+        width:max-content;
+        min-width:140px;
+        max-width:200px;
+
+    }
+
+    .main{
+
+        margin-left:140px;
+        padding:12px;
+
+    }
+
+    }
+
+.sidebar a{
+
+    display:block;
+    padding:8px 8px;
+    color:#ddd;
+    text-decoration:none;
+    white-space:nowrap;
+
+}
+
+.sidebar h3{
+
+    font-size:18px;
+    padding:10px;
+
+}
+
+    .valor{
+
+        font-size:22px;
+
+    }
+
+    .table{
+
+        font-size:13px;
+
+    }
+
+    .btn{
+
+        font-size:13px;
+
+        padding:.30rem .55rem;
+
+    }
+
+    .form-control,
+    .form-select{
+
+        font-size:13px;
+
+    }
+
+    .modal-dialog{
+
+        margin:.4rem;
+
+    }
+
+}
 </style>
 
 </head>
@@ -2146,6 +2239,14 @@ switch($accion){
 
 default:
 
+echo '
+<script>
+setTimeout(function(){
+    location.reload();
+}, 60000);
+</script>
+';
+
 $productos=productosUsuario();
 
 $movimientos = movimientosUsuario();
@@ -2164,13 +2265,56 @@ $stockCorrecto = [];
 
 foreach($productos as $p){
 
-    $datos = datosStockProductoAlmacen(
-        $p["id"],
-        almacenUsuario()
-    );
+    $nombreAlmacen = "";
 
-    $stock = $datos["stock"];
-    $min   = $datos["stock_minimo"];
+    // SUPERADMIN: sumar/ver todos los almacenes
+    if(esSuperAdmin()){
+
+        $stock = 0;
+        $min = 0;
+        $nombreAlmacen = "";
+
+        foreach(almacenes() as $alm){
+
+            $datos = datosStockProductoAlmacen(
+                $p["id"],
+                $alm["id"]
+            );
+
+
+if($datos["stock"] <= $datos["stock_minimo"]){
+
+    $nombreAlmacen = $alm["nombre"];
+
+}
+
+
+            $stock += $datos["stock"];
+
+
+            if($min==0){
+
+                $min = $datos["stock_minimo"];
+
+            }
+
+        }
+
+    }
+  
+  else{
+
+
+        $datos = datosStockProductoAlmacen(
+            $p["id"],
+            almacenUsuario()
+        );
+
+        $stock = $datos["stock"];
+        $min   = $datos["stock_minimo"];
+
+    }
+
 
     $totalStock += $stock;
 
@@ -2178,6 +2322,7 @@ foreach($productos as $p){
 
         $p["stock"] = $stock;
         $p["stock_minimo"] = $min;
+      $p["almacen_nombre"] = $nombreAlmacen;
 
         $stockCritico[] = $p;
 
@@ -2188,6 +2333,7 @@ foreach($productos as $p){
 
         $p["stock"] = $stock;
         $p["stock_minimo"] = $min;
+      $p["almacen_nombre"] = $nombreAlmacen;
 
         $stockBajo[] = $p;
 
@@ -2196,6 +2342,7 @@ foreach($productos as $p){
 
         $p["stock"] = $stock;
         $p["stock_minimo"] = $min;
+      $p["almacen_nombre"] = $nombreAlmacen;
 
         $stockCorrecto[] = $p;
 
@@ -2319,8 +2466,19 @@ if(count($stockCritico)==0){
 
         echo "<div class='d-flex justify-content-between border-bottom py-2'>";
 
-        echo "<strong>".$p["nombre"]."</strong>";
+echo "<div>";
 
+echo "<strong>".$p["nombre"]."</strong>";
+
+if(isset($p["almacen_nombre"]) && $p["almacen_nombre"]!=""){
+
+    echo "<br><small class='text-muted'>".
+    $p["almacen_nombre"].
+    "</small>";
+
+}
+
+echo "</div>";
         echo "<span class='badge bg-danger'>".$p["stock"]." / ".$p["stock_minimo"]."</span>";
 
         echo "</div>";
@@ -2356,7 +2514,7 @@ Stock bajo
 if(count($stockBajo)==0){
 
     echo "<div class='alert alert-success mb-0'>
-    Todos los productos están por encima del mínimo.
+    No hay productos en stock bajo (revise stock crítico).
     </div>";
 
 }else{
@@ -2365,8 +2523,19 @@ if(count($stockBajo)==0){
 
         echo "<div class='d-flex justify-content-between border-bottom py-2'>";
 
-        echo "<strong>".$p["nombre"]."</strong>";
+echo "<div>";
 
+echo "<strong>".$p["nombre"]."</strong>";
+
+if(isset($p["almacen_nombre"]) && $p["almacen_nombre"]!=""){
+
+    echo "<br><small class='text-muted'>".
+    $p["almacen_nombre"].
+    "</small>";
+
+}
+
+echo "</div>";
         echo "<span class='badge bg-warning text-dark'>".$p["stock"]." / ".$p["stock_minimo"]."</span>";
 
         echo "</div>";
@@ -2411,8 +2580,19 @@ if(count($stockCorrecto)==0){
 
         echo "<div class='d-flex justify-content-between border-bottom py-2'>";
 
-        echo "<strong>".$p["nombre"]."</strong>";
+echo "<div>";
 
+echo "<strong>".$p["nombre"]."</strong>";
+
+if(isset($p["almacen_nombre"]) && $p["almacen_nombre"]!=""){
+
+    echo "<br><small class='text-muted'>".
+    $p["almacen_nombre"].
+    "</small>";
+
+}
+
+echo "</div>";
         echo "<span class='badge bg-success'>".$p["stock"]." / ".$p["stock_minimo"]."</span>";
 
         echo "</div>";
@@ -2486,7 +2666,8 @@ echo "</tr>";
 </tbody>
 
 </table>
-
+</div>
+  
 <?php
 
 break;
@@ -2526,6 +2707,7 @@ id="buscar"
 class="form-control mb-3"
 placeholder="Buscar producto...">
 
+  <div class="table-responsive">
 <table
 id="tablaProductos"
 class="table table-striped table-hover bg-white shadow">
@@ -2568,15 +2750,43 @@ class="table table-striped table-hover bg-white shadow">
 <?php foreach($productos as $p){
 
 
+if(esSuperAdmin()){
+
+    $stock = 0;
+    $stockMinimo = 0;
+    $ubicacion = "";
+
+    foreach(almacenes() as $alm){
+
+        $datosStock = datosStockProductoAlmacen(
+            $p["id"],
+            $alm["id"]
+        );
+
+        $stock += $datosStock["stock"];
+
+        if($datosStock["stock_minimo"] > $stockMinimo){
+            $stockMinimo = $datosStock["stock_minimo"];
+        }
+
+        if($ubicacion==""){
+            $ubicacion = $datosStock["ubicacion"];
+        }
+
+    }
+
+}else{
+
     $datosStock = datosStockProductoAlmacen(
         $p["id"],
         almacenUsuario()
     );
 
-
     $stock = $datosStock["stock"];
     $stockMinimo = $datosStock["stock_minimo"];
     $ubicacion = $datosStock["ubicacion"];
+
+}
 
 
     $color="";
@@ -2691,7 +2901,7 @@ data-bs-target="#editar<?=$p["id"]?>">
 </tbody>
 
 </table>
-
+</div>
 
 
 <?php if(puedeEditar()){ ?>
@@ -3289,6 +3499,7 @@ Registrar entrada
 
 </h4>
 
+    <div class="table-responsive">
 <table class="table table-striped bg-white shadow">
 
 <thead>
@@ -3337,7 +3548,8 @@ foreach($lista as $m){
 </tbody>
 
 </table>
-
+</div>
+  
 <?php
 
 break;
@@ -3464,6 +3676,7 @@ Registrar salida
 
 </h4>
 
+      <div class="table-responsive">
 <table class="table table-striped bg-white shadow">
 
 <thead>
@@ -3512,7 +3725,8 @@ foreach($lista as $m){
 </tbody>
 
 </table>
-
+</div>
+  
 <?php
 
 break;
@@ -3607,6 +3821,7 @@ Limpiar
 
 </form>
 
+        <div class="table-responsive">
 <table class="table table-striped table-hover bg-white shadow">
 
 <thead>
@@ -3724,7 +3939,8 @@ foreach($movimientos as $m){
 </tbody>
 
 </table>
-
+</div>
+  
 <?php
 
 break;
@@ -3757,6 +3973,7 @@ Nueva categoría
 
 </div>
 
+          <div class="table-responsive">
 <table class="table table-striped bg-white shadow">
 
 <thead>
@@ -3814,7 +4031,8 @@ onclick="return confirm('¿Eliminar categoría?')">
 </tbody>
 
 </table>
-
+</div>
+  
 <div class="modal fade" id="nuevaCategoria">
 
 <div class="modal-dialog">
@@ -3899,6 +4117,7 @@ Nuevo proveedor
 
 </div>
 
+            <div class="table-responsive">
 <table class="table table-striped table-hover bg-white shadow">
 
 <thead>
@@ -3956,7 +4175,8 @@ onclick="return confirm('¿Eliminar proveedor?')">
 </tbody>
 
 </table>
-
+</div>
+  
 <div class="modal fade" id="nuevoProveedor">
 
 <div class="modal-dialog modal-lg">
@@ -4220,6 +4440,7 @@ Nuevo almacén
 
 </div>
 
+              <div class="table-responsive">
 <table class="table table-striped bg-white shadow">
 
 <thead>
@@ -4330,7 +4551,8 @@ Guardar
 </tbody>
 
 </table>
-
+</div>
+  
 <div class="modal fade" id="nuevoAlmacen">
 
 <div class="modal-dialog">
@@ -4425,6 +4647,7 @@ Nuevo usuario
 
 </button>
 
+                <div class="table-responsive">
 <table class="table table-striped bg-white shadow">
 
 <thead>
@@ -4693,7 +4916,8 @@ Guardar cambios
 </tbody>
 
 </table>
-
+</div>
+  
   <!-- MODAL NUEVO USUARIO -->
 
 <div class="modal fade" id="nuevoUsuario">
@@ -4937,6 +5161,23 @@ break;
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"></script>
+
+  
+<script>
+function ajustarMenu(){
+
+    const sidebar = document.querySelector(".sidebar");
+    const main = document.querySelector(".main");
+
+    if(!sidebar || !main) return;
+
+    main.style.marginLeft = sidebar.offsetWidth + "px";
+}
+
+window.addEventListener("load", ajustarMenu);
+window.addEventListener("resize", ajustarMenu);
+</script>
+  
 
 </body>
 </html>
