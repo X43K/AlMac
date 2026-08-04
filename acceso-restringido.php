@@ -1,4 +1,5 @@
 <?php
+session_name('ALMAC_SESSID');
 session_start(); // Necesario para obtener usuario
 
 http_response_code(403);

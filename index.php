@@ -10,6 +10,65 @@ date_default_timezone_set("Europe/Madrid");
 session_name('ALMAC_SESSID');
 session_start();
 
+/* =====================================================
+   BLOQUEO AUTOMÁTICO DE IPS
+   ===================================================== */
+
+$archivoBloqueadas = __DIR__ . "/ips_permanentemente_bloqueadas.log";
+$archivoIntentos   = __DIR__ . "/ips_bloqueadas.log";
+
+$ip = $_SERVER["REMOTE_ADDR"];
+
+// ¿Está bloqueada permanentemente?
+if (file_exists($archivoBloqueadas)) {
+
+    $ips = file($archivoBloqueadas, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+    foreach ($ips as $linea) {
+
+        // Permite tanto guardar solo la IP como "IP: x.x.x.x"
+        if (strpos($linea, $ip) !== false) {
+
+            http_response_code(403);
+
+            die("
+            <html>
+            <head>
+            <title>Acceso bloqueado</title>
+            <style>
+            body{
+                background:#111;
+                color:#fff;
+                font-family:Arial;
+                display:flex;
+                justify-content:center;
+                align-items:center;
+                height:100vh;
+                text-align:center;
+            }
+            .caja{
+                padding:40px;
+                border:2px solid #b00020;
+                border-radius:10px;
+                background:#1b1b1b;
+            }
+            h1{
+                color:#ff4d4d;
+            }
+            </style>
+            </head>
+            <body>
+                <div class='caja'>
+                    <h1>Acceso bloqueado</h1>
+                    <p>Su dirección IP ha sido bloqueada.</p>
+                </div>
+            </body>
+            </html>
+            ");
+        }
+    }
+}
+
 /**********************************************************************
  CONFIGURACIÓN
 **********************************************************************/
@@ -582,6 +641,49 @@ if(!$encontrado){
 guardarStock($stock);
 
 }
+
+/**********************************************************************
+ IPS_BLOQUEADAS
+**********************************************************************/
+function registrarIntento($usuario)
+{
+    $archivo = __DIR__ . "/ips_bloqueadas.log";
+    $archivoBloqueadas = __DIR__ . "/ips_permanentemente_bloqueadas.log";
+
+    $ip = $_SERVER["REMOTE_ADDR"];
+
+    $linea = date("Y-m-d H:i:s")
+           ." | Usuario: ".$usuario
+           ." | IP: ".$ip.PHP_EOL;
+
+    file_put_contents($archivo, $linea, FILE_APPEND);
+
+    // Contar intentos de esa IP
+    $lineas = file_exists($archivo)
+        ? file($archivo, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES)
+        : [];
+
+    $contador = 0;
+
+    foreach ($lineas as $l) {
+        if (strpos($l, "IP: ".$ip) !== false) {
+            $contador++;
+        }
+    }
+
+    // Bloquear a partir del quinto intento
+    if ($contador >= 5) {
+
+        $ips = file_exists($archivoBloqueadas)
+            ? file($archivoBloqueadas, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES)
+            : [];
+
+        if (!in_array($ip, $ips)) {
+            file_put_contents($archivoBloqueadas, $ip.PHP_EOL, FILE_APPEND);
+        }
+    }
+}
+
 /**********************************************************************
  USUARIOS
 **********************************************************************/
@@ -1950,6 +2052,15 @@ Usuarios
     <i class="bi bi-person-gear"></i>
     Mi perfil
 </a>
+
+<?php if(esSuperAdmin()){ ?>
+
+<a href="ips_bloqueadas.php">
+  <i class="bi bi-shield-lock"></i>
+    IPs bloqueadas
+</a>
+
+<?php } ?>
 
 <a href="?accion=logout">
     <i class="bi bi-box-arrow-right"></i>
