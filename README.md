@@ -18,8 +18,8 @@ PHP y Apache/Nginx
 ## Tipos de usuarios:
 - Lector: Puede consultar en el almacen al que pertenece.
 - Operario: Puede hacer todo lo anterior y tambien generar entradas y salidas de productos, asi como crear nuevos productos en el almacen al que pertenece.
-- Admin: Puede hacer todo lo anterior y crear/editar/eliminar usuarios en el almacen al que pertenece. Es el administrador del almacen al que ha sido asignado.
-- SuperAdmin: Puede hacer todo lo anterior pero en cualquier almacen, ademas de poder crear nuevos almacenes y asignarles administradores. Es el administrador general de la WebApp.
+- Admin: Puede hacer todo lo anterior y crear/editar/eliminar usuarios en el almacen al que pertenece. Es el administrador del almacen al que ha sido asignado. Tambien puede consultar las IPs bloqueadas.
+- SuperAdmin: Puede hacer todo lo anterior pero en cualquier almacen, ademas de poder crear nuevos almacenes y asignarles administradores. Es el administrador general de la WebApp.Tambien puede consultar las IPs bloqueadas y eliminar el bloqueo a las IPs que desee.
 
 ## Cómo contribuir
 - Reporta errores en la sección Issues.
